@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { User, Lock, ShieldAlert, Globe, Compass, ArrowRight } from 'lucide-react';
 // @ts-ignore
 import logoImg from '../assets/images/dual_airline_logo.png';
-import loginBg from '../assets/images/login_bg.jpg';
+import loginBg from '../assets/images/login_bg.png';
 
 interface LoginProps {
   onLoginSuccess: (role: 'admin' | 'cashier' | 'user') => void;
