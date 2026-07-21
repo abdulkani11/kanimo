@@ -1,0 +1,68 @@
+[
+  {
+    "id": "CUST-B2B",
+    "name": "B2B",
+    "type": "Travel Agency",
+    "email": "b2b@noble.com",
+    "mobile": "+1 555-0101",
+    "commissionPercent": 9,
+    "creditLimit": 100000,
+    "balance": 0,
+    "createdAt": "2026-03-10T10:00:00Z"
+  },
+  {
+    "id": "CUST-SABRE",
+    "name": "SABRE",
+    "type": "Travel Agency",
+    "email": "sabre@noble.com",
+    "mobile": "+1 555-0102",
+    "commissionPercent": 7,
+    "creditLimit": 100000,
+    "balance": 0,
+    "createdAt": "2026-03-10T10:00:00Z"
+  },
+  {
+    "id": "CUST-101",
+    "name": "Elite Travel Agency",
+    "type": "Travel Agency",
+    "email": "contact@elitetravel.com",
+    "mobile": "+1 555-0199",
+    "commissionPercent": 7,
+    "creditLimit": 50000,
+    "balance": 12450,
+    "createdAt": "2026-03-10T10:00:00Z"
+  },
+  {
+    "id": "CUST-102",
+    "name": "Apex Corporate Inc",
+    "type": "Corporate",
+    "email": "travel@apexcorp.com",
+    "mobile": "+1 555-0144",
+    "commissionPercent": 5,
+    "creditLimit": 100000,
+    "balance": 34200,
+    "createdAt": "2026-04-12T11:30:00Z"
+  },
+  {
+    "id": "CUST-103",
+    "name": "John Smith",
+    "type": "Individual",
+    "email": "john.smith@gmail.com",
+    "mobile": "+1 555-0177",
+    "commissionPercent": 0,
+    "creditLimit": 5000,
+    "balance": 0,
+    "createdAt": "2026-05-18T09:15:00Z"
+  },
+  {
+    "id": "CUST-104",
+    "name": "BSB Portal",
+    "type": "Corporate",
+    "email": "info@bsbportal.so",
+    "mobile": "+252 61 5550111",
+    "commissionPercent": 6,
+    "creditLimit": 75000,
+    "balance": 0,
+    "createdAt": "2026-07-20T04:00:00Z"
+  }
+]

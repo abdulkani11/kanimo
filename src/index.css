@@ -1,0 +1,323 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Global Dark Mode Overrides */
+.dark body {
+  background-color: #0b0f19;
+  color: #f1f5f9;
+}
+
+.dark #apex-app-root {
+  background-color: #0b0f19 !important;
+}
+
+.dark #bento-sidebar {
+  background-color: #05070c !important;
+  border-color: #1e293b !important;
+}
+
+.dark .bento-card {
+  background: #111827 !important;
+  border-color: #1f2937 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dark .bento-card:hover {
+  border-color: #374151 !important;
+}
+
+.dark .stat-value-bento {
+  color: #ffffff !important;
+}
+
+.dark .label-bento {
+  color: #9ca3af !important;
+}
+
+/* Typography Overrides */
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  color: #ffffff !important;
+}
+
+.dark p,
+.dark span:not(.bg-blue-50):not(.bg-emerald-500\/10):not(.bg-amber-500\/10):not(.bg-rose-500\/10):not(.bg-indigo-500\/10) {
+  color: #9ca3af !important;
+}
+
+/* Force specific colors for table and links */
+.dark td,
+.dark th {
+  border-color: #1f2937 !important;
+  color: #d1d5db !important;
+}
+
+.dark th {
+  background-color: #1f2937 !important;
+  color: #9ca3af !important;
+}
+
+.dark tr:hover {
+  background-color: rgba(31, 41, 55, 0.4) !important;
+}
+
+/* Inputs & Form Overrides */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #ffffff !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #3b82f6 !important;
+  outline: none !important;
+}
+
+.dark option {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}
+
+/* Badges and tags overrides */
+.dark .bg-slate-50 {
+  background-color: #111827 !important;
+}
+.dark .text-slate-900 {
+  color: #f8fafc !important;
+}
+.dark .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-650 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-500 {
+  color: #64748b !important;
+}
+.dark .text-slate-400 {
+  color: #475569 !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-slate-150 {
+  border-color: #1f2937 !important;
+}
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1f2937 !important;
+}
+
+/* Status colors legibility overrides for dark theme */
+.dark .text-indigo-650 {
+  color: #a5b4fc !important;
+}
+.dark .text-emerald-600 {
+  color: #34d399 !important;
+}
+.dark .text-amber-650 {
+  color: #fbbf24 !important;
+}
+.dark .text-rose-600 {
+  color: #f87171 !important;
+}
+.dark .text-amber-600 {
+  color: #fbbf24 !important;
+}
+
+/* Status badge background opacity fixes */
+.dark .bg-indigo-500\/10 {
+  background-color: rgba(99, 102, 241, 0.22) !important;
+}
+.dark .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.22) !important;
+}
+.dark .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.22) !important;
+}
+.dark .bg-rose-500\/10 {
+  background-color: rgba(239, 68, 68, 0.22) !important;
+}
+
+/* Interactive select option colors in table rows */
+.dark select option {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}
+
+/* Link color readability */
+.dark .text-blue-600,
+.dark a[href] {
+  color: #60a5fa !important;
+}
+.dark .text-blue-750 {
+  color: #93c5fd !important;
+}
+
+/* Buttons overrides */
+.dark .bg-white {
+  background-color: #111827 !important;
+}
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1f2937 !important;
+}
+.dark .text-slate-800 {
+  color: #ffffff !important;
+}
+
+/* Hover and backgrounds for list items/cards */
+.dark .hover\:bg-slate-50\/50:hover {
+  background-color: rgba(31, 41, 55, 0.25) !important;
+}
+.dark .bg-slate-50 {
+  background-color: #0f172a !important;
+}
+
+/* Light color badge background/text overrides in dark mode */
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+.dark .bg-rose-50 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+.dark .bg-rose-50\/60 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+.dark .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+.dark .bg-blue-50\/50 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+.dark .border-blue-100\/50 {
+  border-color: rgba(59, 130, 246, 0.2) !important;
+}
+.dark .text-slate-950 {
+  color: #f8fafc !important;
+}
+
+/* Bento Theme Specific Styles */
+.bento-card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: all 0.2s ease-in-out;
+}
+
+.bento-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.label-bento {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748B;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value-bento {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.trend-up-bento {
+  color: #10B981;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.flight-row-bento:hover {
+  background: #f8fafc;
+}
+
+.progress-bar-bento {
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-fill-bento {
+  height: 100%;
+  background: #2563eb;
+  border-radius: 3px;
+}
+
+/* Custom CSS Scrollbars and Print Settings */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+  body {
+    margin: 1.5cm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #boarding-pass-display, #boarding-pass-display *,
+  #invoice-print-area, #invoice-print-area * {
+    visibility: visible;
+  }
+  #boarding-pass-display, #invoice-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+  button, header, aside, #btn-print-ticket {
+    display: none !important;
+  }
+}
+

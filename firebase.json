@@ -1,0 +1,8 @@
+{
+  "firestore": {
+    "databaseId": "ai-studio-travelagencyairl-36a4eca5-e0cf-4f01-a577-ce6bc15051ff",
+    "rules": "firestore.rules",
+    "edition": "ENTERPRISE",
+    "dataAccessMode": "FIRESTORE_NATIVE"
+  }
+}

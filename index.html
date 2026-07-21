@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Noble Travel Agent</title>
+    <script>
+      (function() {
+        // 1. Patch target.fetch getter/setter descriptor
+        try {
+          const target = typeof globalThis !== 'undefined' ? globalThis : window;
+          const desc = Object.getOwnPropertyDescriptor(target, 'fetch') || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target), 'fetch');
+          if (desc && !desc.set) {
+            const originalFetch = target.fetch;
+            let currentFetch = originalFetch;
+            Object.defineProperty(target, 'fetch', {
+              get() {
+                return currentFetch;
+              },
+              set(val) {
+                currentFetch = val;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {
+          // Silent fallback
+        }
+
+        // 2. Patch JSON.parse defensively to handle "undefined" and empty string gracefully
+        try {
+          const originalParse = JSON.parse;
+          JSON.parse = function(text, reviver) {
+            if (text === 'undefined' || text === undefined) {
+              return undefined;
+            }
+            try {
+              return originalParse.call(JSON, text, reviver);
+            } catch (err) {
+              if (typeof text === 'string' && (text.trim() === 'undefined' || text.trim() === '')) {
+                return undefined;
+              }
+              throw err;
+            }
+          };
+        } catch (e) {
+          // Silent fallback
+        }
+
+        // 3. Patch Response.prototype.json defensively to handle "undefined" and empty string responses
+        try {
+          if (typeof Response !== 'undefined' && Response.prototype.json) {
+            const originalResJson = Response.prototype.json;
+            Response.prototype.json = function() {
+              const clone = this.clone();
+              return originalResJson.call(this).catch(err => {
+                return clone.text().then(text => {
+                  if (text === 'undefined' || text.trim() === '') {
+                    return undefined;
+                  }
+                  throw err;
+                }).catch(() => {
+                  throw err;
+                });
+              });
+            };
+          }
+        } catch (e) {
+          // Silent fallback
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
