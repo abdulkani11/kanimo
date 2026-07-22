@@ -1022,7 +1022,15 @@ app.put('/api/invoices/:id', async (req, res) => {
       } else {
         const parsedPaid = Number(updated.paidAmount) || 0;
         updated.dueAmount = Math.max(0, updated.netAmount - parsedPaid);
-        updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+        if (updated.status !== 'Refunded') {
+          if (updated.status === 'Partial') {
+            if (updated.dueAmount === 0) {
+              updated.status = 'Paid';
+            }
+          } else {
+            updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+          }
+        }
       }
 
       await docRef.set(updated);
@@ -1076,7 +1084,15 @@ app.put('/api/invoices/:id', async (req, res) => {
   } else {
     const parsedPaid = Number(updated.paidAmount) || 0;
     updated.dueAmount = Math.max(0, updated.netAmount - parsedPaid);
-    updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+    if (updated.status !== 'Refunded') {
+      if (updated.status === 'Partial') {
+        if (updated.dueAmount === 0) {
+          updated.status = 'Paid';
+        }
+      } else {
+        updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+      }
+    }
   }
 
   invoices[idx] = updated;
@@ -1279,7 +1295,7 @@ app.get('/api/payments', async (req, res) => {
 });
 
 app.post('/api/payments', async (req, res) => {
-  const { invoiceId, amount, method, referenceNumber } = req.body;
+  const { invoiceId, amount, method, referenceNumber, status } = req.body;
   try {
     if (db) {
       const isVisa = invoiceId.startsWith('VSA-');
@@ -1304,9 +1320,26 @@ app.post('/api/payments', async (req, res) => {
 
       await db.collection('payments').doc(newPayment.id).set(newPayment);
 
-      const updatedPaidAmount = (invoice.paidAmount || 0) + parsedAmount;
-      const updatedDueAmount = Math.max(0, (invoice.netAmount || 0) - updatedPaidAmount);
-      const updatedStatus = updatedDueAmount === 0 ? 'Paid' : (updatedPaidAmount > 0 ? 'Partial' : 'Unpaid');
+      let updatedPaidAmount = (invoice.paidAmount || 0) + parsedAmount;
+      let updatedDueAmount = Math.max(0, (invoice.netAmount || 0) - updatedPaidAmount);
+      let updatedStatus = updatedDueAmount === 0 ? 'Paid' : (updatedPaidAmount > 0 ? 'Partial' : 'Unpaid');
+
+      if (status) {
+        updatedStatus = status;
+        if (status === 'Paid') {
+          updatedPaidAmount = invoice.netAmount || 0;
+          updatedDueAmount = 0;
+        } else if (status === 'Unpaid') {
+          updatedPaidAmount = 0;
+          updatedDueAmount = invoice.netAmount || 0;
+        } else if (status === 'Refunded') {
+          updatedDueAmount = 0;
+        } else if (status === 'Partial') {
+          if (updatedDueAmount === 0) {
+            updatedStatus = 'Paid';
+          }
+        }
+      }
 
       await invRef.update({
         paidAmount: updatedPaidAmount,
@@ -1344,9 +1377,30 @@ app.post('/api/payments', async (req, res) => {
 
   payments.unshift(newPayment);
 
-  invoice.paidAmount = (invoice.paidAmount || 0) + parsedAmount;
-  invoice.dueAmount = Math.max(0, (invoice.netAmount || 0) - invoice.paidAmount);
-  invoice.status = invoice.dueAmount === 0 ? 'Paid' : (invoice.paidAmount > 0 ? 'Partial' : 'Unpaid');
+  let updatedPaidAmount = (invoice.paidAmount || 0) + parsedAmount;
+  let updatedDueAmount = Math.max(0, (invoice.netAmount || 0) - updatedPaidAmount);
+  let updatedStatus = updatedDueAmount === 0 ? 'Paid' : (updatedPaidAmount > 0 ? 'Partial' : 'Unpaid');
+
+  if (status) {
+    updatedStatus = status;
+    if (status === 'Paid') {
+      updatedPaidAmount = invoice.netAmount || 0;
+      updatedDueAmount = 0;
+    } else if (status === 'Unpaid') {
+      updatedPaidAmount = 0;
+      updatedDueAmount = invoice.netAmount || 0;
+    } else if (status === 'Refunded') {
+      updatedDueAmount = 0;
+    } else if (status === 'Partial') {
+      if (updatedDueAmount === 0) {
+        updatedStatus = 'Paid';
+      }
+    }
+  }
+
+  invoice.paidAmount = updatedPaidAmount;
+  invoice.dueAmount = updatedDueAmount;
+  invoice.status = updatedStatus;
 
   const customer = customers.find(c => c.id === invoice.customerId);
   if (customer) {
@@ -1690,7 +1744,15 @@ app.put('/api/visas/:id', async (req, res) => {
     }
   } else {
     updated.dueAmount = Math.max(0, Math.round((updated.netAmount - parsedPaid) * 100) / 100);
-    updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+    if (updated.status !== 'Refunded') {
+      if (updated.status === 'Partial') {
+        if (updated.dueAmount === 0) {
+          updated.status = 'Paid';
+        }
+      } else {
+        updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+      }
+    }
   }
 
   // Adjust customer credit balance

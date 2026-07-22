@@ -262,43 +262,34 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
     e.preventDefault();
     if (!paymentInvoice) return;
 
+    const enteredAmt = Number(paymentAmount) || 0;
+    const netAmt = paymentInvoice.netAmount || 0;
+    const newCumulativePaid = (paymentInvoice.paidAmount || 0) + enteredAmt;
+
+    // 1. Map status selection to backend expected values
+    let statusMapped = 'Unpaid';
+    if (paymentStatus === 'PAID') statusMapped = 'Paid';
+    else if (paymentStatus === 'PARTIAL PAID') statusMapped = 'Partial';
+    else if (paymentStatus === 'REFUND') statusMapped = 'Refunded';
+    else if (paymentStatus === 'UNPAID') statusMapped = 'Unpaid';
+
     try {
-      // 1. Post the payment record
+      // 2. Post the payment record
       const paymentRes = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           invoiceId: paymentInvoice.id,
-          amount: Number(paymentAmount) || 0,
+          amount: enteredAmt,
           method: paymentAccount || 'Cash',
           referenceNumber: paymentReference || '',
+          status: statusMapped,
         }),
       });
 
       if (!paymentRes.ok) {
         throw new Error('Failed to record payment');
       }
-
-      const enteredAmt = Number(paymentAmount) || 0;
-      const netAmt = paymentInvoice.netAmount || 0;
-
-      // 2. Map status selection to backend expected values
-      let statusMapped = 'Unpaid';
-      if (paymentStatus === 'PAID') {
-        if (enteredAmt < netAmt) {
-          statusMapped = 'Partial'; // Auto-correct to Partial
-        } else {
-          statusMapped = 'Paid';
-        }
-      }
-      else if (paymentStatus === 'PARTIAL PAID') {
-        if (enteredAmt >= netAmt) {
-          statusMapped = 'Paid'; // Auto-correct to Paid
-        } else {
-          statusMapped = 'Partial';
-        }
-      }
-      else if (paymentStatus === 'REFUND') statusMapped = 'Refunded';
 
       // 3. Post audit log
       await fetch('/api/audit-logs', {

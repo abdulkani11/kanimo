@@ -323,18 +323,14 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
     try {
       const enteredAmt = Number(paymentAmount) || 0;
       const netAmt = paymentVisa.netAmount || 0;
+      const newCumulativePaid = (paymentVisa.paidAmount || 0) + enteredAmt;
 
       // Map status selection
       let statusMapped = 'Unpaid';
-      if (paymentStatus === 'PAID') {
-        if (enteredAmt < netAmt) statusMapped = 'Partial';
-        else statusMapped = 'Paid';
-      } else if (paymentStatus === 'PARTIAL PAID') {
-        if (enteredAmt >= netAmt) statusMapped = 'Paid';
-        else statusMapped = 'Partial';
-      } else if (paymentStatus === 'REFUND') {
-        statusMapped = 'Refunded';
-      }
+      if (paymentStatus === 'PAID') statusMapped = 'Paid';
+      else if (paymentStatus === 'PARTIAL PAID') statusMapped = 'Partial';
+      else if (paymentStatus === 'REFUND') statusMapped = 'Refunded';
+      else if (paymentStatus === 'UNPAID') statusMapped = 'Unpaid';
 
       // Log transaction
       const paymentRes = await fetch('/api/payments', {
@@ -346,7 +342,8 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
           amount: enteredAmt,
           date: paymentDate,
           channel: paymentAccount,
-          referenceNumber: paymentReference || ''
+          referenceNumber: paymentReference || '',
+          status: statusMapped,
         })
       });
 
@@ -587,10 +584,12 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                                   ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
                                   : v.status === 'Partial'
                                   ? 'bg-amber-100 text-amber-850 border-amber-300 hover:bg-amber-200'
+                                  : v.status === 'Refunded'
+                                  ? 'bg-indigo-100 text-indigo-850 border-indigo-300 hover:bg-indigo-200'
                                   : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
                               } ${(userRole === 'admin' || userRole === 'cashier') ? 'cursor-pointer' : ''}`}
                             >
-                              {v.status === 'Partial' ? 'PARTIAL v' : v.status === 'Paid' ? 'PAID v' : 'UNPAID v'}
+                              {v.status === 'Partial' ? 'PARTIAL v' : v.status === 'Paid' ? 'PAID v' : v.status === 'Refunded' ? 'REFUNDED v' : 'UNPAID v'}
                             </button>
                           </td>
                           <td className="py-4 px-4 text-center">
