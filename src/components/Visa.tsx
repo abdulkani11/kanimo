@@ -38,10 +38,13 @@ interface Customer {
 interface VisaProps {
   userRole: 'admin' | 'cashier' | 'user';
   loggedInEmail: string;
+  loggedInName?: string;
 }
 
-export default function Visa({ userRole, loggedInEmail }: VisaProps) {
-  const salesUser = userRole === 'admin' ? 'JANE DOE (ADMIN)' : userRole === 'cashier' ? 'HAMZE ISMAIL (CASHIER)' : 'ABDI KANIM (USER)';
+export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProps) {
+  const salesUser = loggedInName 
+    ? loggedInName.toUpperCase() 
+    : (userRole === 'admin' ? 'JANE DOE (ADMIN)' : userRole === 'cashier' ? 'HAMZE ISMAIL (CASHIER)' : 'ABDI KANIM (USER)');
   const [visas, setVisas] = useState<VisaRecord[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);

@@ -503,8 +503,8 @@ export default function App() {
                 {activeTab === 'dashboard' && <Dashboard userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'customers' && <Customers />}
                 {activeTab === 'client-invoice' && loggedInRole === 'admin' && <ClientInvoice />}
-                {activeTab === 'tickets' && <Tickets userRole={userRole} loggedInEmail={loggedInEmail} />}
-                {activeTab === 'visa' && <Visa userRole={userRole} loggedInEmail={loggedInEmail} />}
+                {activeTab === 'tickets' && <Tickets userRole={userRole} loggedInEmail={loggedInEmail} loggedInName={loggedInName} />}
+                {activeTab === 'visa' && <Visa userRole={userRole} loggedInEmail={loggedInEmail} loggedInName={loggedInName} />}
                 {activeTab === 'quotation' && loggedInRole === 'admin' && <Quotation userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'refunds' && <Refunds />}
                 {activeTab === 'daily-report' && <DailyReport userRole={userRole} loggedInEmail={loggedInEmail} />}

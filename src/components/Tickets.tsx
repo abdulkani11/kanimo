@@ -32,9 +32,10 @@ import logoImg from '../assets/images/dual_airline_logo.png';
 interface TicketsProps {
   userRole?: 'admin' | 'cashier' | 'user';
   loggedInEmail?: string;
+  loggedInName?: string;
 }
 
-export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@noble.com' }: TicketsProps) {
+export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@noble.com', loggedInName }: TicketsProps) {
   const [invoices, setInvoices] = useState<TicketInvoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,16 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   const [discount, setDiscount] = useState('0');
   const [paidAmount, setPaidAmount] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Bank' | 'Mobile Money' | 'Card'>('Bank');
-  const [salesUser, setSalesUser] = useState('HAMZE ISMAIL ALI');
+  const [salesUser, setSalesUser] = useState(loggedInName || 'HAMZE ISMAIL ALI');
+
+  const getUserDisplayName = (email?: string) => {
+    if (!email) return '';
+    const clean = email.toLowerCase();
+    if (clean === 'cashier@noble.com') return 'Mohamed Ibrahim';
+    if (clean === 'admin@noble.com') return 'Jane Doe';
+    if (clean === 'agent@noble.com') return 'Hamdi Ahmed';
+    return email.split('@')[0].toUpperCase();
+  };
 
   // Add Payment Modal states
   const [isAddPaymentModalOpen, setIsAddPaymentModalOpen] = useState(false);
@@ -136,14 +146,18 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   }, [viewMode]);
 
   useEffect(() => {
-    if (userRole === 'admin') {
-      setSalesUser('JANE DOE (ADMIN)');
-    } else if (userRole === 'cashier') {
-      setSalesUser('HAMZE ISMAIL (CASHIER)');
+    if (loggedInName) {
+      setSalesUser(loggedInName.toUpperCase());
     } else {
-      setSalesUser('ABDI KANIM (USER)');
+      if (userRole === 'admin') {
+        setSalesUser('JANE DOE (ADMIN)');
+      } else if (userRole === 'cashier') {
+        setSalesUser('HAMZE ISMAIL (CASHIER)');
+      } else {
+        setSalesUser('ABDI KANIM (USER)');
+      }
     }
-  }, [userRole]);
+  }, [userRole, loggedInName]);
 
   // Dynamic sync of customer commission and info when formCustomerId changes
   useEffect(() => {
@@ -417,7 +431,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
       };
     });
     setPassengers(loadedPassengers);
-    setSalesUser(invoice.id ? 'HAMZE ISMAIL ALI' : 'Jane Doe');
+    setSalesUser(invoice.id ? (getUserDisplayName(invoice.createdBy) || 'HAMZE ISMAIL ALI') : (loggedInName || 'Jane Doe'));
     
     // Custom user field loads
     setCustomInvoiceId(invoice.id ? invoice.id.replace('INV-2026-', '') : '');
@@ -1084,8 +1098,8 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                             </td>
 
                             {/* Ticket Creator User */}
-                            <td className="p-4 text-slate-500 font-bold truncate max-w-[120px]">
-                              {salesUser}
+                            <td className="p-4 text-slate-500 font-bold truncate max-w-[120px]" title={getUserDisplayName(inv.createdBy) || salesUser}>
+                              {getUserDisplayName(inv.createdBy) || salesUser}
                             </td>
 
                             {/* Action columns styled as sleek icon actions */}
