@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Eye, Edit, Trash2, ArrowLeft, Printer, RefreshCw, X, Download, Upload, Calculator, FileText, DollarSign, AlertTriangle
 } from 'lucide-react';
@@ -352,69 +352,58 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
 
       if (!paymentRes.ok) throw new Error('Failed to record payment');
 
-      // Update Visa record
-      const updateRes = await fetch(`/api/visas/${paymentVisa.id}`, {
-        method: 'PUT',
+      await fetch('/api/audit-logs', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: statusMapped,
-          paidAmount: enteredAmt,
-          paymentMethod: paymentAccount || 'Cash'
+          username: loggedInEmail,
+          role: userRole === 'admin' ? 'Super Admin' : 'Finance Cashier',
+          action: 'Add Visa Payment',
+          details: `Logged visa payment of $${enteredAmt} for ID ${paymentVisa.id} (Account: ${paymentAccount})`
         })
       });
 
-      if (updateRes.ok) {
-        await fetch('/api/audit-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: loggedInEmail,
-            role: userRole === 'admin' ? 'Super Admin' : 'Finance Cashier',
-            action: 'Add Visa Payment',
-            details: `Logged visa payment of $${enteredAmt} for ID ${paymentVisa.id} (Account: ${paymentAccount})`
-          })
-        });
-
-        setIsPaymentModalOpen(false);
-        await fetchData();
-      }
+      setIsPaymentModalOpen(false);
+      await fetchData();
     } catch (err) {
       console.error('Error logging payment:', err);
     }
   };
 
   // Filter Logic
-  const filteredVisas = visas.filter((v) => {
-    const matchesSearch = 
-      v.id.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
-      v.applicantName.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
-      v.passportNumber.toLowerCase().includes(appliedSearchQuery.toLowerCase());
-    
-    const matchesDate = appliedDate ? v.salesDate === appliedDate : true;
-    const matchesCust = appliedCustomerId ? v.customerId === appliedCustomerId : true;
-    const matchesStatus = appliedStatus ? v.status.toUpperCase() === appliedStatus.toUpperCase() : true;
-
-    const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
-      ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
-      : loggedInEmail;
+  const filteredVisas = useMemo(() => {
+    return visas.filter((v) => {
+      const matchesSearch = 
+        v.id.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
+        v.applicantName.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
+        v.passportNumber.toLowerCase().includes(appliedSearchQuery.toLowerCase());
       
-    const matchesCreator = userRole === 'user'
-      ? (v.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase()
-      : true;
+      const matchesDate = appliedDate ? v.salesDate === appliedDate : true;
+      const matchesCust = appliedCustomerId ? v.customerId === appliedCustomerId : true;
+      const matchesStatus = appliedStatus ? v.status.toUpperCase() === appliedStatus.toUpperCase() : true;
 
-    return matchesSearch && matchesDate && matchesCust && matchesStatus && matchesCreator;
-  });
+      const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
+        ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
+        : loggedInEmail;
+        
+      const matchesCreator = userRole === 'user'
+        ? (v.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase()
+        : true;
+
+      return matchesSearch && matchesDate && matchesCust && matchesStatus && matchesCreator;
+    });
+  }, [visas, appliedSearchQuery, appliedDate, appliedCustomerId, appliedStatus, loggedInEmail, userRole]);
 
   // Math metrics
   const totalVisasCount = filteredVisas.length;
-  const totalNetRevenue = filteredVisas.reduce((sum, v) => sum + v.netAmount, 0);
-  const totalPaidAmount = filteredVisas.reduce((sum, v) => sum + v.paidAmount, 0);
-  const totalOutstanding = filteredVisas.reduce((sum, v) => sum + v.dueAmount, 0);
+  const totalNetRevenue = useMemo(() => filteredVisas.reduce((sum, v) => sum + v.netAmount, 0), [filteredVisas]);
+  const totalPaidAmount = useMemo(() => filteredVisas.reduce((sum, v) => sum + v.paidAmount, 0), [filteredVisas]);
+  const totalOutstanding = useMemo(() => filteredVisas.reduce((sum, v) => sum + v.dueAmount, 0), [filteredVisas]);
 
   // Pagination bounds
-  const totalPages = Math.ceil(filteredVisas.length / itemsPerPage) || 1;
+  const totalPages = useMemo(() => Math.ceil(filteredVisas.length / itemsPerPage) || 1, [filteredVisas, itemsPerPage]);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedVisas = filteredVisas.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedVisas = useMemo(() => filteredVisas.slice(startIndex, startIndex + itemsPerPage), [filteredVisas, startIndex, itemsPerPage]);
 
   return (
     <div className="space-y-6">

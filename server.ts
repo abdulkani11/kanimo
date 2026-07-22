@@ -1282,7 +1282,8 @@ app.post('/api/payments', async (req, res) => {
   const { invoiceId, amount, method, referenceNumber } = req.body;
   try {
     if (db) {
-      const invRef = db.collection('invoices').doc(invoiceId);
+      const isVisa = invoiceId.startsWith('VSA-');
+      const invRef = db.collection(isVisa ? 'visas' : 'invoices').doc(invoiceId);
       const invSnap = await invRef.get();
       if (!invSnap.exists) return res.status(404).json({ error: 'Invoice not found' });
       const invoice = invSnap.data();
@@ -1296,7 +1297,7 @@ app.post('/api/payments', async (req, res) => {
         id: `PMT-${4000 + count + 1}`,
         invoiceId,
         amount: parsedAmount,
-        method: method || 'Cash',
+        method: method || req.body.channel || 'Cash',
         referenceNumber: referenceNumber || '',
         createdAt: new Date().toISOString(),
       };
@@ -1327,7 +1328,7 @@ app.post('/api/payments', async (req, res) => {
     console.error('Error logging payment in Firestore:', err);
   }
 
-  const invoice = invoices.find(i => i.id === invoiceId);
+  const invoice = invoices.find(i => i.id === invoiceId) || visas.find(v => v.id === invoiceId);
   if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
   const parsedAmount = Number(amount) || 0;
@@ -1336,20 +1337,27 @@ app.post('/api/payments', async (req, res) => {
     id: `PMT-${4000 + payments.length + 1}`,
     invoiceId,
     amount: parsedAmount,
-    method: method || 'Cash',
+    method: method || req.body.channel || 'Cash',
     referenceNumber: referenceNumber || '',
     createdAt: new Date().toISOString(),
   };
 
   payments.unshift(newPayment);
 
-  invoice.paidAmount += parsedAmount;
-  invoice.dueAmount = Math.max(0, invoice.netAmount - invoice.paidAmount);
+  invoice.paidAmount = (invoice.paidAmount || 0) + parsedAmount;
+  invoice.dueAmount = Math.max(0, (invoice.netAmount || 0) - invoice.paidAmount);
   invoice.status = invoice.dueAmount === 0 ? 'Paid' : (invoice.paidAmount > 0 ? 'Partial' : 'Unpaid');
 
   const customer = customers.find(c => c.id === invoice.customerId);
   if (customer) {
     customer.balance = Math.max(0, customer.balance - parsedAmount);
+    saveCustomersToDisk();
+  }
+
+  if (invoiceId.startsWith('VSA-')) {
+    saveVisasToDisk();
+  } else {
+    saveInvoicesToDisk();
   }
 
   res.status(201).json(newPayment);

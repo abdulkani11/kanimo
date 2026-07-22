@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { 
   Search, 
   Plus, 
@@ -300,24 +300,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
       }
       else if (paymentStatus === 'REFUND') statusMapped = 'Refunded';
 
-      const invoiceUpdateBody: any = { 
-        status: statusMapped, 
-        paidAmount: enteredAmt,
-        paymentMethod: paymentAccount || 'Cash'
-      };
-
-      // 3. Update invoice status
-      const invoiceRes = await fetch(`/api/invoices/${paymentInvoice.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(invoiceUpdateBody),
-      });
-
-      if (!invoiceRes.ok) {
-        throw new Error('Failed to update invoice status');
-      }
-
-      // 4. Post audit log
+      // 3. Post audit log
       await fetch('/api/audit-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -658,45 +641,72 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   };
 
   // Filter application matching screenshot criteria
-  const filteredInvoices = invoices.filter(inv => {
-    // 1. Search Query
-    const passengersString = inv.passengers.map(p => p.name).join(' ').toLowerCase();
-    const matchesSearch = 
-      inv.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.pnr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      passengersString.includes(searchQuery.toLowerCase());
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      // 1. Search Query
+      const passengersString = inv.passengers.map(p => p.name).join(' ').toLowerCase();
+      const matchesSearch = 
+        inv.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.pnr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        passengersString.includes(searchQuery.toLowerCase());
 
-    // 2. Applied Sales Date (checking createdAt date or format comparison)
-    const matchesSalesDate = appliedSalesDate 
-      ? inv.createdAt.startsWith(appliedSalesDate) || inv.departureDate.startsWith(appliedSalesDate)
-      : true;
+      // 2. Applied Sales Date (checking createdAt date or format comparison)
+      const matchesSalesDate = appliedSalesDate 
+        ? inv.createdAt.startsWith(appliedSalesDate) || inv.departureDate.startsWith(appliedSalesDate)
+        : true;
 
-    // 3. Applied Customer
-    const matchesCustomer = appliedCustomerId 
-      ? inv.customerId === appliedCustomerId 
-      : true;
+      // 3. Applied Customer
+      const matchesCustomer = appliedCustomerId 
+        ? inv.customerId === appliedCustomerId 
+        : true;
 
-    // 4. Applied Status
-    const matchesStatus = appliedStatus 
-      ? inv.status.toLowerCase() === appliedStatus.toLowerCase() 
-      : true;
+      // 4. Applied Status
+      const matchesStatus = appliedStatus 
+        ? inv.status.toLowerCase() === appliedStatus.toLowerCase() 
+        : true;
 
-    // 5. Creator User Filter (Lock to own invoices if active role is user)
+      // 5. Creator User Filter (Lock to own invoices if active role is user)
+      const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
+        ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
+        : loggedInEmail;
+        
+      const matchesCreator = userRole === 'user'
+        ? (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase()
+        : true;
+
+      return matchesSearch && matchesSalesDate && matchesCustomer && matchesStatus && matchesCreator;
+    });
+  }, [invoices, searchQuery, appliedSalesDate, appliedCustomerId, appliedStatus, loggedInEmail, userRole]);
+
+  // Limit to selected entries count
+  const paginatedInvoices = useMemo(() => {
+    return filteredInvoices.slice(0, entriesPerPage);
+  }, [filteredInvoices, entriesPerPage]);
+
+  // Memoized KPI stats for high performance
+  const kpiStats = useMemo(() => {
     const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
       ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
       : loggedInEmail;
-      
-    const matchesCreator = userRole === 'user'
-      ? (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase()
-      : true;
+    
+    const userInvoices = userRole === 'user'
+      ? invoices.filter(inv => (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase())
+      : invoices;
 
-    return matchesSearch && matchesSalesDate && matchesCustomer && matchesStatus && matchesCreator;
-  });
+    const totalTicketsIssued = userInvoices.length;
+    const totalRevenue = userInvoices.reduce((sum, i) => sum + i.netAmount, 0);
+    const totalCollected = userInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
+    const totalOutstanding = userInvoices.reduce((sum, i) => sum + i.dueAmount, 0);
 
-  // Limit to selected entries count
-  const paginatedInvoices = filteredInvoices.slice(0, entriesPerPage);
+    return {
+      totalTicketsIssued,
+      totalRevenue,
+      totalCollected,
+      totalOutstanding
+    };
+  }, [invoices, userRole, loggedInEmail]);
 
   // Helper to format date into readable DD-MM-YYYY
   const formatSalesDate = (isoString: string) => {
@@ -769,56 +779,39 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
         <div className="space-y-6">
           
           {/* Top KPI Summary Bar */}
-          {(() => {
-            const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
-              ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
-              : loggedInEmail;
-            
-            const userInvoices = userRole === 'user'
-              ? invoices.filter(inv => (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase())
-              : invoices;
-
-            const totalTicketsIssued = userInvoices.length;
-            const totalRevenue = userInvoices.reduce((sum, i) => sum + i.netAmount, 0);
-            const totalCollected = userInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
-            const totalOutstanding = userInvoices.reduce((sum, i) => sum + i.dueAmount, 0);
-
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-blue-500">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-450 uppercase tracking-wider font-sans">Total Tickets Issued</p>
-                    <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">{totalTicketsIssued}</h3>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-2">Active GDS manifests</span>
-                </div>
-
-                <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-emerald-500">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-455 uppercase tracking-wider font-sans">Total Revenue ($ Net)</p>
-                    <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-2">Gross Net Fare + Taxes</span>
-                </div>
-
-                <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-teal-500">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-455 uppercase tracking-wider font-sans">Collected Amount ($ Paid)</p>
-                    <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">${totalCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-2">Cleared payments settled</span>
-                </div>
-
-                <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-rose-500">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-455 uppercase tracking-wider font-sans">Outstanding Balance ($ Due)</p>
-                    <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-2">Pending agent dues</span>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-blue-500">
+              <div>
+                <p className="text-[10px] font-black text-slate-450 uppercase tracking-wider font-sans">Total Tickets Issued</p>
+                <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">{kpiStats.totalTicketsIssued}</h3>
               </div>
-            );
-          })()}
+              <span className="text-[10px] text-slate-400 font-semibold mt-2">Active GDS manifests</span>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-emerald-500">
+              <div>
+                <p className="text-[10px] font-black text-slate-455 uppercase tracking-wider font-sans">Total Revenue ($ Net)</p>
+                <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">${kpiStats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold mt-2">Gross Net Fare + Taxes</span>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-teal-500">
+              <div>
+                <p className="text-[10px] font-black text-slate-455 uppercase tracking-wider font-sans">Collected Amount ($ Paid)</p>
+                <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">${kpiStats.totalCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold mt-2">Cleared payments settled</span>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between border-l-4 border-l-rose-500">
+              <div>
+                <p className="text-[10px] font-black text-slate-455 uppercase tracking-wider font-sans">Outstanding Balance ($ Due)</p>
+                <h3 className="text-xl font-black text-slate-900 mt-1.5 font-sans">${kpiStats.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold mt-2">Pending agent dues</span>
+            </div>
+          </div>
 
           {/* Floating Filter Toolbar */}
           <div className="bg-white border border-slate-200/80 p-4 rounded-2xl shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
