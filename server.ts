@@ -634,27 +634,44 @@ app.post('/api/customers/import', async (req, res) => {
     if (!Array.isArray(importedList)) {
       return res.status(400).json({ error: 'Imported data must be an array of customers.' });
     }
+    const existingIds = new Set(customers.map(c => c.id));
+    const existingNames = new Set(customers.map(c => (c.name || '').trim().toLowerCase()));
+
+    let addedCount = 0;
+    let skippedCount = 0;
+
     if (db) {
       const batch = db.batch();
       for (const cust of importedList) {
-        if (!cust.id) continue;
-        const docRef = db.collection('customers').doc(cust.id);
+        if (!cust.id && !cust.name) continue;
+        const nameLower = (cust.name || '').trim().toLowerCase();
+        if ((cust.id && existingIds.has(cust.id)) || (nameLower && existingNames.has(nameLower))) {
+          skippedCount++;
+          continue;
+        }
+        if (cust.id) existingIds.add(cust.id);
+        if (nameLower) existingNames.add(nameLower);
+        const docRef = db.collection('customers').doc(cust.id || `CUST-${100 + existingIds.size}`);
         batch.set(docRef, cust);
+        addedCount++;
       }
-      await batch.commit();
+      if (addedCount > 0) await batch.commit();
     } else {
       for (const cust of importedList) {
-        if (!cust.id) continue;
-        const idx = customers.findIndex(c => c.id === cust.id);
-        if (idx > -1) {
-          customers[idx] = cust;
-        } else {
-          customers.push(cust);
+        if (!cust.id && !cust.name) continue;
+        const nameLower = (cust.name || '').trim().toLowerCase();
+        if ((cust.id && existingIds.has(cust.id)) || (nameLower && existingNames.has(nameLower))) {
+          skippedCount++;
+          continue;
         }
+        if (cust.id) existingIds.add(cust.id);
+        if (nameLower) existingNames.add(nameLower);
+        customers.push(cust);
+        addedCount++;
       }
     }
     if (!db) saveCustomersToDisk();
-    res.json({ success: true, count: importedList.length });
+    res.json({ success: true, count: addedCount, skipped: skippedCount });
   } catch (err: any) {
     console.error('Error importing customers:', err);
     res.status(500).json({ error: err.message });
@@ -679,7 +696,13 @@ app.get('/api/customers', async (req, res) => {
 app.post('/api/customers', async (req, res) => {
   const { name, type, email, mobile, commissionPercent, creditLimit, balance } = req.body;
   if (!name || !type) return res.status(400).json({ error: 'Name and Customer Type are required.' });
-  
+
+  const nameTrimmed = (name || '').trim().toLowerCase();
+  const duplicate = customers.find(c => (c.name || '').trim().toLowerCase() === nameTrimmed);
+  if (duplicate) {
+    return res.status(409).json({ error: `Duplicate Entry Warning: Customer account "${name.trim()}" already exists in the system.` });
+  }
+
   try {
     if (db) {
       const snapshot = await db.collection('customers').get();
@@ -688,7 +711,7 @@ app.post('/api/customers', async (req, res) => {
       
       const newCustomer = {
         id: newId,
-        name,
+        name: name.trim(),
         type,
         email: email || '',
         mobile: mobile || '',
@@ -707,7 +730,7 @@ app.post('/api/customers', async (req, res) => {
 
   const newCustomer = {
     id: `CUST-${100 + customers.length + 1}`,
-    name,
+    name: name.trim(),
     type,
     email: email || '',
     mobile: mobile || '',
@@ -783,28 +806,45 @@ app.post('/api/invoices/import', async (req, res) => {
     if (!Array.isArray(importedList)) {
       return res.status(400).json({ error: 'Imported data must be an array of invoices.' });
     }
+    const existingIds = new Set(invoices.map(i => i.id));
+    const existingPnrs = new Set(invoices.map(i => (i.pnr || '').toUpperCase()).filter(Boolean));
+
+    let addedCount = 0;
+    let skippedCount = 0;
+
     if (db) {
       const batch = db.batch();
       for (const inv of importedList) {
-        if (!inv.id) continue;
-        const docRef = db.collection('invoices').doc(inv.id);
+        if (!inv.id && !inv.pnr) continue;
+        const pnrUpper = (inv.pnr || '').toUpperCase();
+        if ((inv.id && existingIds.has(inv.id)) || (pnrUpper && existingPnrs.has(pnrUpper))) {
+          skippedCount++;
+          continue;
+        }
+        if (inv.id) existingIds.add(inv.id);
+        if (pnrUpper) existingPnrs.add(pnrUpper);
+        const docRef = db.collection('invoices').doc(inv.id || `INV-2026-${1000 + existingIds.size}`);
         batch.set(docRef, inv);
+        addedCount++;
       }
-      await batch.commit();
+      if (addedCount > 0) await batch.commit();
     } else {
       for (const inv of importedList) {
-        if (!inv.id) continue;
-        const idx = invoices.findIndex(i => i.id === inv.id);
-        if (idx > -1) {
-          invoices[idx] = inv;
-        } else {
-          invoices.push(inv);
+        if (!inv.id && !inv.pnr) continue;
+        const pnrUpper = (inv.pnr || '').toUpperCase();
+        if ((inv.id && existingIds.has(inv.id)) || (pnrUpper && existingPnrs.has(pnrUpper))) {
+          skippedCount++;
+          continue;
         }
+        if (inv.id) existingIds.add(inv.id);
+        if (pnrUpper) existingPnrs.add(pnrUpper);
+        invoices.push(inv);
+        addedCount++;
       }
       invoices.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
     }
     if (!db) saveInvoicesToDisk();
-    res.json({ success: true, count: importedList.length });
+    res.json({ success: true, count: addedCount, skipped: skippedCount });
   } catch (err: any) {
     console.error('Error importing invoices:', err);
     res.status(500).json({ error: err.message });
@@ -837,6 +877,23 @@ app.post('/api/invoices', async (req, res) => {
     salesDate,
     createdBy,
   } = req.body;
+
+  // Prevent Duplicate PNR and Invoice ID
+  if (pnr && pnr.trim() !== '') {
+    const pnrUpper = pnr.trim().toUpperCase();
+    const duplicatePNR = invoices.find(i => (i.pnr || '').toUpperCase() === pnrUpper);
+    if (duplicatePNR) {
+      return res.status(409).json({ error: `Duplicate Entry Warning: Air Ticket with PNR "${pnrUpper}" already exists in the system!` });
+    }
+  }
+
+  if (customInvoiceId && customInvoiceId.trim() !== '') {
+    const targetId = customInvoiceId.startsWith('INV-') ? customInvoiceId : `INV-2026-${customInvoiceId}`;
+    const duplicateId = invoices.find(i => i.id === targetId || i.customInvoiceId === targetId);
+    if (duplicateId) {
+      return res.status(409).json({ error: `Duplicate Entry Warning: Invoice ID "${targetId}" already exists in the system!` });
+    }
+  }
 
   try {
     if (db) {
@@ -1511,6 +1568,38 @@ app.get('/api/visas', async (req, res) => {
   res.json(visas);
 });
 
+app.post('/api/visas/import', async (req, res) => {
+  try {
+    const { visas: importedList } = req.body;
+    if (!Array.isArray(importedList)) {
+      return res.status(400).json({ error: 'Imported data must be an array of visa records.' });
+    }
+    const existingIds = new Set(visas.map(v => v.id));
+    const existingPassports = new Set(visas.map(v => `${(v.passportNumber || '').toUpperCase()}_${(v.applicantName || '').toLowerCase()}`).filter(x => !x.startsWith('N000000_')));
+
+    let addedCount = 0;
+    let skippedCount = 0;
+
+    for (const visa of importedList) {
+      if (!visa.id && !visa.passportNumber) continue;
+      const passKey = `${(visa.passportNumber || '').toUpperCase()}_${(visa.applicantName || '').toLowerCase()}`;
+      if ((visa.id && existingIds.has(visa.id)) || (passKey && !passKey.startsWith('N000000_') && existingPassports.has(passKey))) {
+        skippedCount++;
+        continue;
+      }
+      if (visa.id) existingIds.add(visa.id);
+      if (passKey && !passKey.startsWith('N000000_')) existingPassports.add(passKey);
+      visas.push(visa);
+      addedCount++;
+    }
+    saveVisasToDisk();
+    res.json({ success: true, count: addedCount, skipped: skippedCount });
+  } catch (err: any) {
+    console.error('Error importing visas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/visas', async (req, res) => {
   const {
     customInvoiceId,
@@ -1528,6 +1617,24 @@ app.post('/api/visas', async (req, res) => {
     paymentMethod,
     createdBy
   } = req.body;
+
+  // Prevent Duplicate Visa Entries
+  if (passportNumber && passportNumber.trim() !== 'N000000' && passportNumber.trim() !== '') {
+    const passUpper = passportNumber.trim().toUpperCase();
+    const appLower = (applicantName || '').trim().toLowerCase();
+    const duplicateVisa = visas.find(v => (v.passportNumber || '').toUpperCase() === passUpper && (v.applicantName || '').trim().toLowerCase() === appLower);
+    if (duplicateVisa) {
+      return res.status(409).json({ error: `Duplicate Entry Warning: Visa record for Passport "${passUpper}" (${applicantName}) already exists in the system!` });
+    }
+  }
+
+  if (customInvoiceId && customInvoiceId.trim() !== '') {
+    const targetVisaId = customInvoiceId.startsWith('VSA-') ? customInvoiceId : `VSA-2026-${customInvoiceId}`;
+    const duplicateVisaId = visas.find(v => v.id === targetVisaId || v.customInvoiceId === targetVisaId);
+    if (duplicateVisaId) {
+      return res.status(409).json({ error: `Duplicate Entry Warning: Visa Record ID "${targetVisaId}" already exists in the system!` });
+    }
+  }
 
   const customer = customers.find(c => c.id === customerId);
   const customerName = customer ? customer.name : 'Unknown Customer';
@@ -1659,6 +1766,15 @@ app.get('/api/quotations', async (req, res) => {
 });
 
 app.post('/api/quotations', async (req, res) => {
+  if (req.body.customQuoteId && req.body.customQuoteId.trim() !== '') {
+    const qId = req.body.customQuoteId.trim();
+    const targetQId = qId.startsWith('QT-') ? qId : `QT-2026-${qId}`;
+    const duplicateQ = quotations.find(q => q.id === targetQId || q.customQuoteId === targetQId);
+    if (duplicateQ) {
+      return res.status(409).json({ error: `Duplicate Entry Warning: Quotation ID "${targetQId}" already exists in the system!` });
+    }
+  }
+
   const newQuote = {
     id: req.body.customQuoteId || `QT-2026-${1000 + quotations.length + 1}`,
     customQuoteId: req.body.customQuoteId || `QT-2026-${1000 + quotations.length + 1}`,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Search, Eye, Edit, Trash2, ArrowLeft, Printer, RefreshCw, X, Download, Upload, Calculator, FileText, DollarSign
+  Plus, Search, Eye, Edit, Trash2, ArrowLeft, Printer, RefreshCw, X, Download, Upload, Calculator, FileText, DollarSign, AlertTriangle
 } from 'lucide-react';
 import HeaderLogo from './HeaderLogo';
 import logoImg from '../assets/images/dual_airline_logo.png';
@@ -47,6 +47,7 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view-letter'>('list');
   const [selectedVisa, setSelectedVisa] = useState<VisaRecord | null>(null);
+  const [deleteVisaTarget, setDeleteVisaTarget] = useState<VisaRecord | null>(null);
 
   // Form Fields
   const [customInvoiceId, setCustomInvoiceId] = useState('');
@@ -253,23 +254,29 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
 
         await fetchData();
         setViewMode('list');
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to save visa record due to duplicate data.');
       }
     } catch (err) {
-      console.error('Error saving visa:', err);
+      console.error('Error submitting visa form:', err);
     }
   };
 
-  const handleDeleteVisa = async (id: string) => {
-    const v = visas.find(item => item.id === id);
-    if (!v) return;
+  const promptDeleteVisa = (v: VisaRecord) => {
     if (v.status === 'Paid') {
-      alert('Cannot delete fully Paid visa records.');
+      alert('Cannot delete a Paid visa application.');
       return;
     }
-    if (!confirm('Are you sure you want to delete this visa record? This will reverse the client ledger balance.')) return;
+    setDeleteVisaTarget(v);
+  };
+
+  const confirmDeleteVisa = async () => {
+    if (!deleteVisaTarget) return;
+    const v = deleteVisaTarget;
 
     try {
-      const res = await fetch(`/api/visas/${id}`, {
+      const res = await fetch(`/api/visas/${v.id}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -280,9 +287,10 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
             username: loggedInEmail,
             role: userRole === 'admin' ? 'Super Admin' : 'Agent',
             action: 'Visa Delete',
-            details: `Deleted visa record ${id} of passenger ${v.applicantName}`
+            details: `Deleted visa record ${v.id} of passenger ${v.applicantName}`
           })
         });
+        setDeleteVisaTarget(null);
         await fetchData();
       }
     } catch (err) {
@@ -589,7 +597,7 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                                 v.status === 'Paid'
                                   ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
                                   : v.status === 'Partial'
-                                  ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
+                                  ? 'bg-amber-100 text-amber-850 border-amber-300 hover:bg-amber-200'
                                   : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
                               } ${(userRole === 'admin' || userRole === 'cashier') ? 'cursor-pointer' : ''}`}
                             >
@@ -618,7 +626,7 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
 
                               {v.status !== 'Paid' && (
                                 <button
-                                  onClick={() => handleDeleteVisa(v.id)}
+                                  onClick={() => promptDeleteVisa(v)}
                                   className="text-slate-400 hover:text-rose-500 transition-colors p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
                                   title="Delete Visa record"
                                 >
@@ -1381,6 +1389,45 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Red Delete Confirmation Modal for Visa */}
+      {deleteVisaTarget && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden transform transition-all scale-100">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-800/60 shadow-inner">
+                <AlertTriangle className="w-8 h-8 stroke-[2.5]" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">
+                Confirm Visa Deletion
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+                Are you sure you want to permanently delete visa application record{' '}
+                <strong className="text-slate-900 dark:text-white font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">{deleteVisaTarget.id}</strong> for applicant{' '}
+                <strong className="text-rose-600 dark:text-rose-400 font-bold">{deleteVisaTarget.applicantName}</strong>?
+                <br /><span className="text-xs text-rose-500 font-bold mt-2.5 inline-block">⚠️ Warning: This will reverse the client ledger balance.</span>
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteVisaTarget(null)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteVisa()}
+                  className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-sm shadow-lg shadow-rose-600/30 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>YES, DELETE RECORD</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

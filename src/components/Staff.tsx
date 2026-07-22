@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  UserPlus, Trash2, Shield, Key, Mail, CheckCircle2, AlertCircle, Eye, Edit, Plus, X 
+  UserPlus, Trash2, Shield, Key, Mail, CheckCircle2, AlertCircle, AlertTriangle, Eye, Edit, Plus, X 
 } from 'lucide-react';
 
 interface StaffUser {
@@ -226,49 +226,31 @@ export default function Staff() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      {confirmDelete === user.email ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mr-2 font-mono">Confirm?</span>
-                          <button
-                            onClick={() => handleDelete(user.email)}
-                            className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-colors"
-                          >
-                            Yes
-                          </button>
-                          <button
-                            onClick={() => setConfirmDelete(null)}
-                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-colors"
-                          >
-                            No
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openReviewModal(user)}
-                            className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer"
-                            title="Review account credentials & logs"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          
-                          <button
-                            onClick={() => openEditModal(user)}
-                            className="p-1.5 text-slate-400 hover:text-amber-500 dark:hover:text-amber-450 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer"
-                            title="Update privilege role / reset password"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openReviewModal(user)}
+                          className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer"
+                          title="Review account credentials & logs"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="p-1.5 text-slate-400 hover:text-amber-500 dark:hover:text-amber-450 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer"
+                          title="Update privilege role / reset password"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
 
-                          <button
-                            onClick={() => setConfirmDelete(user.email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg transition-all cursor-pointer"
-                            title="Delete User staff account"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
+                        <button
+                          onClick={() => setConfirmDelete(user.email)}
+                          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg transition-all cursor-pointer"
+                          title="Delete User staff account"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -504,6 +486,45 @@ export default function Staff() {
           </div>
         </div>
       )}
+
+      {/* Custom Red Delete Confirmation Modal for Staff */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden transform transition-all scale-100">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-800/60 shadow-inner">
+                <AlertTriangle className="w-8 h-8 stroke-[2.5]" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">
+                Confirm Staff Deletion
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+                Are you sure you want to permanently delete staff account{' '}
+                <strong className="text-slate-900 dark:text-white font-bold">{confirmDelete}</strong>?
+                <br /><span className="text-xs text-rose-500 font-bold mt-2.5 inline-block">⚠️ Warning: This action cannot be undone.</span>
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(null)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteUser(confirmDelete)}
+                  className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-sm shadow-lg shadow-rose-600/30 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>YES, DELETE RECORD</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

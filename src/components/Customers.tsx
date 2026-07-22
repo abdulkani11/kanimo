@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, UserPlus, Edit2, Trash2, Download, Upload, FileText, X, Eye, DollarSign } from 'lucide-react';
+import { Search, UserPlus, Edit2, Trash2, Download, Upload, FileText, X, Eye, DollarSign, AlertTriangle } from 'lucide-react';
 import { Customer, TicketInvoice } from '../types';
 
 export default function Customers() {
@@ -15,6 +15,7 @@ export default function Customers() {
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
+  const [deleteCustomerTarget, setDeleteCustomerTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Form Fields
   const [name, setName] = useState('');
@@ -128,33 +129,24 @@ export default function Customers() {
     };
 
     try {
+      let res;
       if (selectedCustomer) {
         // Edit Customer
-        await fetch(`/api/customers/${selectedCustomer.id}`, {
+        res = await fetch(`/api/customers/${selectedCustomer.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        
-        // Log action
-        await fetch('/api/audit-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: 'Jane Doe',
-            role: 'Super Admin',
-            action: 'Edit Customer',
-            details: `Updated details for customer ${name} (${selectedCustomer.id})`,
-          }),
-        });
       } else {
         // Add Customer
-        await fetch('/api/customers', {
+        res = await fetch('/api/customers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
+      }
 
+      if (res.ok) {
         // Log action
         await fetch('/api/audit-logs', {
           method: 'POST',
@@ -162,22 +154,30 @@ export default function Customers() {
           body: JSON.stringify({
             username: 'Jane Doe',
             role: 'Super Admin',
-            action: 'Add Customer',
-            details: `Registered new client ${name} under category ${type}`,
+            action: selectedCustomer ? 'Edit Customer' : 'Add Customer',
+            details: `${selectedCustomer ? 'Updated' : 'Created'} customer ${name}`,
           }),
         });
-      }
 
-      setIsAddEditOpen(false);
-      fetchData();
+        setIsAddEditOpen(false);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to save customer account.');
+      }
     } catch (err) {
-      console.error('Error saving customer:', err);
+      console.error('Failed to submit customer data:', err);
     }
   };
 
   // Delete Customer
-  const handleDelete = async (id: string, customerName: string) => {
-    if (!confirm(`Are you sure you want to delete customer "${customerName}"? This action is irreversible.`)) return;
+  const promptDeleteCustomer = (id: string, customerName: string) => {
+    setDeleteCustomerTarget({ id, name: customerName });
+  };
+
+  const confirmDeleteCustomer = async () => {
+    if (!deleteCustomerTarget) return;
+    const { id, name: customerName } = deleteCustomerTarget;
 
     try {
       await fetch(`/api/customers/${id}`, { method: 'DELETE' });
@@ -194,6 +194,7 @@ export default function Customers() {
         }),
       });
 
+      setDeleteCustomerTarget(null);
       fetchData();
     } catch (err) {
       console.error('Error deleting customer:', err);
@@ -382,7 +383,7 @@ export default function Customers() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(cust.id, cust.name)}
+                            onClick={() => promptDeleteCustomer(cust.id, cust.name)}
                             className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
                             title="Delete Client"
                           >
@@ -587,6 +588,44 @@ export default function Customers() {
               >
                 Close Profile
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Red Delete Confirmation Modal for Customer */}
+      {deleteCustomerTarget && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden transform transition-all scale-100">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-200 dark:border-rose-800/60 shadow-inner">
+                <AlertTriangle className="w-8 h-8 stroke-[2.5]" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">
+                Confirm Client Deletion
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+                Are you sure you want to permanently delete customer account{' '}
+                <strong className="text-slate-900 dark:text-white font-bold">{deleteCustomerTarget.name}</strong> ({deleteCustomerTarget.id})?
+                <br /><span className="text-xs text-rose-500 font-bold mt-2.5 inline-block">⚠️ Warning: This action cannot be undone.</span>
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteCustomerTarget(null)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteCustomer()}
+                  className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-sm shadow-lg shadow-rose-600/30 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>YES, DELETE RECORD</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
