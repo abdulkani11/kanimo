@@ -232,70 +232,15 @@ const initialUsers = [
 
 const initialCustomers = [
   {
-    id: 'CUST-B2B',
-    name: 'B2B',
-    type: 'Travel Agency',
-    email: 'b2b@noble.com',
-    mobile: '+1 555-0101',
-    commissionPercent: 9,
-    creditLimit: 100000,
-    balance: 0,
-    createdAt: '2026-03-10T10:00:00Z',
-  },
-  {
-    id: 'CUST-SABRE',
-    name: 'SABRE',
-    type: 'Travel Agency',
-    email: 'sabre@noble.com',
-    mobile: '+1 555-0102',
-    commissionPercent: 7,
-    creditLimit: 100000,
-    balance: 0,
-    createdAt: '2026-03-10T10:00:00Z',
-  },
-  {
     id: 'CUST-101',
     name: 'Elite Travel Agency',
     type: 'Travel Agency',
     email: 'contact@elitetravel.com',
-    mobile: '+1 555-0199',
-    commissionPercent: 7,
-    creditLimit: 50000,
-    balance: 12450,
-    createdAt: '2026-03-10T10:00:00Z',
-  },
-  {
-    id: 'CUST-102',
-    name: 'Apex Corporate Inc',
-    type: 'Corporate',
-    email: 'travel@apexcorp.com',
-    mobile: '+1 555-0144',
-    commissionPercent: 5,
-    creditLimit: 100000,
-    balance: 34200,
-    createdAt: '2026-04-12T11:30:00Z',
-  },
-  {
-    id: 'CUST-103',
-    name: 'John Smith',
-    type: 'Individual',
-    email: 'john.smith@gmail.com',
-    mobile: '+1 555-0177',
-    commissionPercent: 0,
-    creditLimit: 5000,
-    balance: 0,
-    createdAt: '2026-05-18T09:15:00Z',
-  },
-  {
-    id: 'CUST-104',
-    name: 'BSB Portal',
-    type: 'Corporate',
-    email: 'info@bsbportal.so',
-    mobile: '+252 61 5550111',
+    mobile: '+252 61 5550199',
     commissionPercent: 6,
-    creditLimit: 75000,
+    creditLimit: 50000,
     balance: 0,
-    createdAt: '2026-07-20T04:00:00Z',
+    createdAt: '2026-03-10T10:00:00Z',
   }
 ];
 
@@ -385,29 +330,7 @@ try {
 }
 
 
-let refunds = [
-  {
-    id: 'RFD-3001',
-    invoiceId: 'INV-2026-1001',
-    ticketNumber: '071-2837492831',
-    passengerName: 'Jane Doe',
-    refundAmount: 400,
-    reason: 'Schedule disruption by carrier',
-    status: 'Pending',
-    createdAt: '2026-07-18T16:00:00Z',
-  },
-  {
-    id: 'RFD-3002',
-    invoiceId: 'INV-2026-1002',
-    ticketNumber: '235-9283711029',
-    passengerName: 'Michael Cole',
-    refundAmount: 900,
-    reason: 'Duplicate billing issue',
-    status: 'Refunded',
-    createdAt: '2026-07-16T12:00:00Z',
-    approvedBy: 'Elena Rodriguez',
-  },
-];
+let refunds = [];
 
 let payments = [
   {
@@ -1183,16 +1106,52 @@ app.delete('/api/invoices/:id', async (req, res) => {
 // Refunds API
 app.get('/api/refunds', async (req, res) => {
   try {
-    if (db) {
-      const snapshot = await db.collection('refunds').get();
-      const list = snapshot.docs.map(doc => doc.data());
-      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-      return res.json(list);
-    }
+    const list = [...refunds];
+
+    // Dynamic aggregation of refunded invoices
+    invoices.forEach(inv => {
+      if (inv.status && (inv.status.toLowerCase() === 'refunded' || inv.status.toLowerCase() === 'refund')) {
+        const existing = list.find(r => r.invoiceId === inv.id);
+        if (!existing) {
+          list.push({
+            id: `RFD-${inv.id}`,
+            invoiceId: inv.id,
+            ticketNumber: inv.ticketNumber || inv.pnr || 'N/A',
+            passengerName: (inv.passengers && inv.passengers[0] && inv.passengers[0].name) ? inv.passengers[0].name : (inv.customerName || 'N/A'),
+            refundAmount: inv.netAmount || inv.baseFare || 0,
+            reason: 'Flight Refund & Ledger Credit Adjustment',
+            status: 'Refunded',
+            createdAt: inv.createdAt || new Date().toISOString(),
+          });
+        }
+      }
+    });
+
+    // Dynamic aggregation of refunded visas
+    visas.forEach(v => {
+      if (v.status && (v.status.toLowerCase() === 'refunded' || v.status.toLowerCase() === 'refund')) {
+        const existing = list.find(r => r.invoiceId === v.id || r.invoiceId === v.customInvoiceId);
+        if (!existing) {
+          list.push({
+            id: `RFD-${v.id}`,
+            invoiceId: v.id,
+            ticketNumber: v.passportNumber || 'N/A',
+            passengerName: v.applicantName || v.customerName || 'N/A',
+            refundAmount: v.netAmount || v.baseFare || 0,
+            reason: 'Visa Processing Cancellation Refund',
+            status: 'Refunded',
+            createdAt: v.createdAt || new Date().toISOString(),
+          });
+        }
+      }
+    });
+
+    list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return res.json(list);
   } catch (err: any) {
     console.error('Error fetching refunds from Firestore:', err);
+    res.status(500).json({ error: err.message });
   }
-  res.json(refunds);
 });
 
 app.post('/api/refunds', async (req, res) => {

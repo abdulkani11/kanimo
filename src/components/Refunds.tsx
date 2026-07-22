@@ -311,7 +311,9 @@ export default function Refunds() {
                           </td>
                           <td className="py-4 px-3 font-bold text-slate-900 dark:text-slate-100">
                             {claim.passengerName}
-                            <p className="text-[9px] text-slate-450 dark:text-slate-500 font-medium font-mono mt-0.5">Ticket: {claim.ticketNumber}</p>
+                            <p className="text-[9px] text-slate-450 dark:text-slate-500 font-medium font-mono mt-0.5">
+                              {claim.invoiceId.startsWith('VSA-') ? 'Passport' : 'Ticket'}: {claim.ticketNumber}
+                            </p>
                           </td>
                           <td className="py-4 px-3 font-mono font-bold">
                             {claim.createdAt ? claim.createdAt.split('T')[0].split('-').reverse().join('-') : 'N/A'}
