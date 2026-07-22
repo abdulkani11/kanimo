@@ -690,9 +690,9 @@ export default function Quotation({ userRole, loggedInEmail }: QuotationProps) {
                       <td className="py-4 px-4 font-bold text-slate-800">{item.description}</td>
                       <td className="py-4 px-4 font-semibold text-slate-500">{item.cabinClass}</td>
                       <td className="py-4 px-4 font-mono font-bold text-slate-600">{item.dateTime || '-'}</td>
-                      <td className="py-4 px-4 text-right font-mono">${item.price.toFixed(2)}</td>
+                      <td className="py-4 px-4 text-right font-mono">${Number(item.price || 0).toFixed(2)}</td>
                       <td className="py-4 px-4 text-right font-mono">{item.quantity}</td>
-                      <td className="py-4 px-4 text-right font-mono font-bold">${item.subtotal.toFixed(2)}</td>
+                      <td className="py-4 px-4 text-right font-mono font-bold">${Number(item.subtotal || 0).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -703,7 +703,7 @@ export default function Quotation({ userRole, loggedInEmail }: QuotationProps) {
             <div className="flex justify-end mb-8">
               <div className="w-64 border border-slate-200 rounded-xl p-4 bg-slate-50/50 text-xs flex justify-between items-center">
                 <span className="font-bold text-slate-600">Estimated Quote Total:</span>
-                <span className="font-mono text-base font-black text-slate-900">${selectedQuote.totalAmount.toFixed(2)}</span>
+                <span className="font-mono text-base font-black text-slate-900">${Number(selectedQuote.totalAmount || 0).toFixed(2)}</span>
               </div>
             </div>
 

@@ -1790,13 +1790,13 @@ app.post('/api/auth/login', async (req, res) => {
       if (doc.exists) {
         const u = doc.data();
         if (u && u.password === password) {
-          return res.json({ success: true, user: { email: u.email, role: u.role } });
+          return res.json({ success: true, user: { name: u.name || '', email: u.email, role: u.role } });
         }
       }
     } else {
       const u = users.find(x => x.email.toLowerCase() === email.toLowerCase());
       if (u && u.password === password) {
-        return res.json({ success: true, user: { email: u.email, role: u.role } });
+        return res.json({ success: true, user: { name: u.name || '', email: u.email, role: u.role } });
       }
     }
   } catch (err: any) {
@@ -1813,7 +1813,7 @@ app.get('/api/users', async (req, res) => {
       const snapshot = await db.collection('users').get();
       const list = snapshot.docs.map(doc => {
         const data = doc.data();
-        return { email: data.email, role: data.role };
+        return { name: data.name || '', email: data.email, role: data.role };
       });
       return res.json(list);
     }
@@ -1821,13 +1821,13 @@ app.get('/api/users', async (req, res) => {
     console.error('Error fetching users from Firestore:', err);
   }
 
-  const list = users.map(u => ({ email: u.email, role: u.role }));
+  const list = users.map(u => ({ name: u.name || '', email: u.email, role: u.role }));
   res.json(list);
 });
 
 // register a new staff user
 app.post('/api/users', async (req, res) => {
-  const { email, password, role } = req.body;
+  const { name, email, password, role } = req.body;
   if (!email || !password || !role) {
     return res.status(400).json({ error: 'Email, password, and role are required' });
   }
@@ -1841,9 +1841,9 @@ app.post('/api/users', async (req, res) => {
         return res.status(400).json({ error: 'User email is already registered.' });
       }
 
-      const newUser = { id: normalizedEmail, email: normalizedEmail, password, role };
+      const newUser = { id: normalizedEmail, name: name || '', email: normalizedEmail, password, role };
       await db.collection('users').doc(normalizedEmail).set(newUser);
-      return res.status(201).json({ email: normalizedEmail, role });
+      return res.status(201).json({ name: name || '', email: normalizedEmail, role });
     }
   } catch (err: any) {
     console.error('Error creating user in Firestore:', err);
@@ -1854,11 +1854,11 @@ app.post('/api/users', async (req, res) => {
     return res.status(400).json({ error: 'User email is already registered.' });
   }
 
-  const newUser = { id: normalizedEmail, email: normalizedEmail, password, role };
+  const newUser = { id: normalizedEmail, name: name || '', email: normalizedEmail, password, role };
   users.push(newUser);
   saveUsersToDisk();
 
-  res.status(201).json({ email: normalizedEmail, role });
+  res.status(201).json({ name: name || '', email: normalizedEmail, role });
 });
 
 // delete a user staff
@@ -1912,10 +1912,10 @@ app.delete('/api/users/:email', async (req, res) => {
 });
 
 
-// update a user staff role and optionally password
+// update a user staff role, name and optionally password
 app.put('/api/users/:email', async (req, res) => {
   const targetEmail = req.params.email.toLowerCase();
-  const { role, password } = req.body;
+  const { name, role, password } = req.body;
   if (!role) {
     return res.status(400).json({ error: 'Role is required' });
   }
@@ -1928,9 +1928,10 @@ app.put('/api/users/:email', async (req, res) => {
         return res.status(404).json({ error: 'User not found' });
       }
       const updateData: any = { role };
+      if (name !== undefined) updateData.name = name;
       if (password) updateData.password = password;
       await docRef.update(updateData);
-      return res.json({ email: targetEmail, role });
+      return res.json({ name: name !== undefined ? name : (doc.data()?.name || ''), email: targetEmail, role });
     }
   } catch (err: any) {
     console.error('Error updating user in Firestore:', err);
@@ -1942,10 +1943,11 @@ app.put('/api/users/:email', async (req, res) => {
   }
 
   user.role = role;
+  if (name !== undefined) user.name = name;
   if (password) user.password = password;
   saveUsersToDisk();
 
-  res.json({ email: targetEmail, role });
+  res.json({ name: user.name || '', email: targetEmail, role });
 });
 
 

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 
 interface StaffUser {
+  name?: string;
   email: string;
   role: 'admin' | 'cashier' | 'user';
 }
@@ -20,6 +21,7 @@ export default function Staff() {
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null);
 
   // Form Fields
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'cashier' | 'user'>('user');
@@ -46,7 +48,7 @@ export default function Staff() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !role) {
+    if (!name || !email || !password || !role) {
       setMessage({ type: 'error', text: 'Please fill out all fields.' });
       return;
     }
@@ -60,13 +62,14 @@ export default function Staff() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ name, email, password, role }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
         setMessage({ type: 'success', text: `Staff user "${email}" registered successfully.` });
+        setName('');
         setEmail('');
         setPassword('');
         setRole('user');
@@ -95,7 +98,7 @@ export default function Staff() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ role, password: password || undefined }),
+        body: JSON.stringify({ name, role, password: password || undefined }),
       });
 
       const data = await res.json();
@@ -136,6 +139,7 @@ export default function Staff() {
   };
 
   const openAddModal = () => {
+    setName('');
     setEmail('');
     setPassword('');
     setRole('user');
@@ -144,6 +148,7 @@ export default function Staff() {
 
   const openEditModal = (user: StaffUser) => {
     setSelectedUser(user);
+    setName(user.name || '');
     setRole(user.role);
     setPassword('');
     setIsEditModalOpen(true);
@@ -196,6 +201,7 @@ export default function Staff() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="bg-[#F8FAFC] dark:bg-slate-900/40 border-b border-slate-200/80 dark:border-slate-750 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-5 py-3">Full Name</th>
                 <th className="px-5 py-3">Email Coordinates</th>
                 <th className="px-5 py-3 text-center">Privilege Role</th>
                 <th className="px-5 py-3 text-right">Actions</th>
@@ -208,6 +214,9 @@ export default function Staff() {
 
                 return (
                   <tr key={user.email} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                    <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-white">
+                      {user.name || 'N/A'}
+                    </td>
                     <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200 font-mono">
                       {user.email}
                     </td>
@@ -282,6 +291,21 @@ export default function Staff() {
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">Full Name</label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Jane Doe"
+                    className="w-full bg-[#F8FAFC] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 pl-10 pr-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-blue-500 font-medium"
+                    required
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">Email Address</label>
                 <div className="relative">
@@ -363,6 +387,21 @@ export default function Staff() {
             </div>
 
             <form onSubmit={handleUpdate} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">Full Name</label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Jane Doe"
+                    className="w-full bg-[#F8FAFC] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 pl-10 pr-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-blue-500 font-medium"
+                    required
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">Email Address</label>
                 <input 

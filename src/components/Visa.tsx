@@ -614,7 +614,7 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                                 <Eye className="w-4 h-4" />
                               </button>
                               
-                              {v.status !== 'Paid' && (
+                              {v.status !== 'Paid' && v.status !== 'Partial' && (
                                 <button
                                   onClick={() => enterEditMode(v)}
                                   className="text-slate-400 hover:text-amber-500 dark:hover:text-amber-450 transition-colors p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
@@ -624,7 +624,7 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                                 </button>
                               )}
 
-                              {v.status !== 'Paid' && (
+                              {v.status !== 'Paid' && v.status !== 'Partial' && (
                                 <button
                                   onClick={() => promptDeleteVisa(v)}
                                   className="text-slate-400 hover:text-rose-500 transition-colors p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Calendar, Users, DollarSign, Search, ShieldAlert, Sparkles, Receipt, Globe, Tag, Scale } from 'lucide-react';
+import { FileText, Calendar, Users, DollarSign, Search, ShieldAlert, Sparkles, Receipt, Globe, Tag, Scale, Printer } from 'lucide-react';
 
 interface Passenger {
   name: string;
@@ -324,6 +324,13 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
               {startDate === endDate ? `Reporting for ${startDate}` : `Reporting from ${startDate} to ${endDate}`}
             </p>
           </div>
+          <button
+            onClick={() => window.print()}
+            className="bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white font-black px-4.5 py-2.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-lg transition-all flex items-center gap-2 text-xs font-mono tracking-wide cursor-pointer print:hidden"
+          >
+            <Printer className="w-4 h-4 text-white" />
+            <span>Print Daily Report Letter</span>
+          </button>
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-750">
@@ -425,6 +432,162 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* ----------------- PRINTABLE LETTER LAYOUT ----------------- */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          /* Hide sidebars and button components completely from print layout */
+          aside, button, .print\\:hidden, #btn-replay-intro {
+            display: none !important;
+          }
+          /* Override body visibility logic so only the letter actually prints */
+          body * {
+            visibility: hidden;
+          }
+          #daily-report-printable-letter, #daily-report-printable-letter * {
+            visibility: visible;
+          }
+          #daily-report-printable-letter {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 24px;
+            background: white !important;
+            color: black !important;
+            font-family: 'Courier New', Courier, monospace;
+          }
+        }
+      `}} />
+
+      <div id="daily-report-printable-letter" className="hidden print:block text-black bg-white p-8 max-w-4xl mx-auto border border-slate-100">
+        {/* Letterhead */}
+        <div className="border-b-4 border-slate-900 pb-4 mb-6 flex justify-between items-end">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 font-mono">NOBLE TRAVEL AGENCY</h1>
+            <p className="text-[10px] font-bold tracking-widest text-slate-600 font-mono uppercase mt-0.5">IATA Accredited Passenger Sales Agent</p>
+            <p className="text-[9px] text-slate-550 font-mono mt-1">Airport Road, Mogadishu, Somalia | Tel: +252 61 222 3444 | info@nobletravel.com</p>
+          </div>
+          <div className="text-right text-xs font-mono">
+            <p className="font-bold">DATE: {new Date().toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+            <p className="text-slate-500 text-[10px] mt-0.5">REF: NT-DRP-{startDate.replace(/-/g, '')}</p>
+          </div>
+        </div>
+
+        {/* Letter Title */}
+        <div className="text-center my-6">
+          <h2 className="text-base font-black tracking-wider uppercase border-y border-dashed border-slate-900 py-2 inline-block font-mono px-4">
+            Daily Ticket Dispatch & Manifest Letter
+          </h2>
+        </div>
+
+        {/* Report Scope */}
+        <div className="mb-6 text-xs leading-relaxed font-mono">
+          <p><strong>TO:</strong> Finance Director / GDS Ticketing Operations</p>
+          <p><strong>FROM:</strong> Noble Ticketing Satellite Dispatch ({loggedInEmail})</p>
+          <p className="mt-2">
+            This letter serves as the official manifest settlement dispatch for flight tickets generated during the period from <strong>{startDate}</strong> to <strong>{endDate}</strong>.
+          </p>
+        </div>
+
+        {/* Financial Summary Table */}
+        <div className="mb-8 font-mono">
+          <h3 className="text-xs font-bold uppercase tracking-wider mb-2 border-b pb-1 text-slate-900">I. Dispatch Summary</h3>
+          <table className="w-full text-xs text-left border border-slate-300">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-300">
+                <th className="p-2 border-r border-slate-300">Metric Description</th>
+                <th className="p-2 text-right">Settled Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-slate-200">
+                <td className="p-2 border-r border-slate-300">Total Tickets Issued</td>
+                <td className="p-2 text-right font-bold">{totalTickets} manifest(s)</td>
+              </tr>
+              <tr className="border-b border-slate-200">
+                <td className="p-2 border-r border-slate-300">Total Vendor Commission (GDS)</td>
+                <td className="p-2 text-right font-bold">$ {totalVendorComm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              <tr className="border-b border-slate-200">
+                <td className="p-2 border-r border-slate-300">Total Customer Commission (Markup)</td>
+                <td className="p-2 text-right font-bold">$ {totalCustComm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              <tr className="border-b border-slate-200">
+                <td className="p-2 border-r border-slate-300">Total Discount Allowed</td>
+                <td className="p-2 text-right font-bold">$ {totalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              <tr className="border-b border-slate-200 bg-emerald-50/20 font-bold">
+                <td className="p-2 border-r border-slate-300">Total Net Revenue (Combined Profit)</td>
+                <td className="p-2 text-right text-emerald-700">$ {totalNetRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              <tr className="bg-indigo-50/20 font-bold">
+                <td className="p-2 border-r border-slate-300">Remain Balance (Variance)</td>
+                <td className="p-2 text-right text-indigo-700">$ {Math.abs(remainBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Manifest Details Table */}
+        <div className="mb-10 font-mono">
+          <h3 className="text-xs font-bold uppercase tracking-wider mb-2 border-b pb-1 text-slate-900">II. Manifest Details</h3>
+          <table className="w-full text-[10px] text-left border border-slate-300 border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-300">
+                <th className="p-1.5 border-r border-slate-300 text-center">#</th>
+                <th className="p-1.5 border-r border-slate-300">Ticket Number</th>
+                <th className="p-1.5 border-r border-slate-300">Passenger</th>
+                <th className="p-1.5 border-r border-slate-300 text-right">Net Amount</th>
+                <th className="p-1.5 border-r border-slate-300 text-right">Vendor Comm</th>
+                <th className="p-1.5 border-r border-slate-300 text-right">Customer Comm</th>
+                <th className="p-1.5 border-r border-slate-300 text-right">Discount</th>
+                <th className="p-1.5">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-4 text-center text-slate-400">No ticket records in selected date range.</td>
+                </tr>
+              ) : (
+                filteredInvoices.map((inv, idx) => (
+                  <tr key={inv.id} className="border-b border-slate-200">
+                    <td className="p-1.5 border-r border-slate-300 text-center">{idx + 1}</td>
+                    <td className="p-1.5 border-r border-slate-300 font-bold">{inv.ticketNumber || '000-00000000'}</td>
+                    <td className="p-1.5 border-r border-slate-300">{inv.passengers[0]?.name || 'Unknown'}</td>
+                    <td className="p-1.5 border-r border-slate-300 text-right">$ {inv.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-1.5 border-r border-slate-300 text-right">$ {inv.vendorCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-1.5 border-r border-slate-300 text-right">$ {inv.customerCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-1.5 border-r border-slate-300 text-right">$ {(inv.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-1.5 font-bold uppercase">{inv.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Verification Signatures */}
+        <div className="mt-12 grid grid-cols-3 gap-6 text-xs font-mono text-center pt-8">
+          <div className="space-y-12">
+            <p className="border-b border-slate-900 pb-1 font-bold">{loggedInEmail}</p>
+            <p className="text-[10px] text-slate-500 uppercase">Prepared By (Ticketing Staff)</p>
+          </div>
+          <div className="space-y-12">
+            <p className="border-b border-slate-900 pb-1">&nbsp;</p>
+            <p className="text-[10px] text-slate-500 uppercase">Approved By (Finance Officer)</p>
+          </div>
+          <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-4 aspect-square max-w-[120px] mx-auto text-slate-400 font-bold">
+            <span className="text-[8px] uppercase">Official Stamp</span>
+          </div>
         </div>
       </div>
     </div>

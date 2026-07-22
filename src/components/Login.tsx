@@ -6,7 +6,7 @@ import logoImg from '../assets/images/dual_airline_logo.png';
 import loginBg from '../assets/images/login_bg.png';
 
 interface LoginProps {
-  onLoginSuccess: (role: 'admin' | 'cashier' | 'user', email: string) => void;
+  onLoginSuccess: (role: 'admin' | 'cashier' | 'user', email: string, name: string) => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
@@ -39,7 +39,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.user) {
-          onLoginSuccess(data.user.role, data.user.email);
+          onLoginSuccess(data.user.role, data.user.email, data.user.name || '');
           return;
         }
       }
@@ -51,7 +51,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       // Fallback to local credentials for offline resilience
       const matched = credentials[email.toLowerCase() as keyof typeof credentials];
       if (matched && matched.password === password) {
-        onLoginSuccess(matched.role, email);
+        let fallbackName = 'Jane Doe';
+        if (email.toLowerCase() === 'cashier@noble.com') fallbackName = 'Mohamed Ibrahim';
+        if (email.toLowerCase() === 'agent@noble.com') fallbackName = 'Hamdi Ahmed';
+        onLoginSuccess(matched.role, email, fallbackName);
       } else {
         setError('Invalid email address or secure password. Please verify credentials.');
       }

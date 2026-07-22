@@ -34,10 +34,11 @@ import HeaderLogo from './components/HeaderLogo';
 import Login from './components/Login';
 import Visa from './components/Visa';
 import Quotation from './components/Quotation';
+import ClientInvoice from './components/ClientInvoice';
 // @ts-ignore
 import ethiopianBg from './assets/images/ethiopian_plane_bg_1784506931193.jpg';
 
-type Tab = 'dashboard' | 'customers' | 'tickets' | 'refunds' | 'settings' | 'staff' | 'daily-report' | 'visa' | 'quotation';
+type Tab = 'dashboard' | 'customers' | 'client-invoice' | 'tickets' | 'refunds' | 'settings' | 'staff' | 'daily-report' | 'visa' | 'quotation';
 
 export default function App() {
   const [isAppLoading, setIsAppLoading] = useState(true);
@@ -113,6 +114,10 @@ export default function App() {
     return localStorage.getItem('noble_logged_in_email') || 'admin@noble.com';
   });
 
+  const [loggedInName, setLoggedInName] = useState<string>(() => {
+    return localStorage.getItem('noble_logged_in_name') || 'Jane Doe';
+  });
+
   const [userRole, setUserRole] = useState<'admin' | 'cashier' | 'user'>(() => {
     return (localStorage.getItem('apex_user_role') as any) || 'admin';
   });
@@ -120,17 +125,36 @@ export default function App() {
   const handleRoleChange = (role: 'admin' | 'cashier' | 'user') => {
     setUserRole(role);
     localStorage.setItem('apex_user_role', role);
+    // Automatically update the displayed logged-in name if the admin toggles privilege role for simulation/testing
+    if (loggedInRole === 'admin') {
+      if (role === 'admin') setLoggedInName('Jane Doe');
+      if (role === 'cashier') setLoggedInName('Mohamed Ibrahim');
+      if (role === 'user') setLoggedInName('Hamdi Ahmed');
+    }
   };
 
-  const handleLoginSuccess = (role: 'admin' | 'cashier' | 'user', email: string) => {
+  const handleLoginSuccess = (role: 'admin' | 'cashier' | 'user', email: string, name: string) => {
     setLoggedInRole(role);
     localStorage.setItem('noble_logged_in_role', role);
     setUserRole(role);
     localStorage.setItem('apex_user_role', role);
     setLoggedInEmail(email);
     localStorage.setItem('noble_logged_in_email', email);
+    
+    let resolvedName = name;
+    if (!resolvedName) {
+      if (email.toLowerCase() === 'admin@noble.com') resolvedName = 'Jane Doe';
+      else if (email.toLowerCase() === 'cashier@noble.com') resolvedName = 'Mohamed Ibrahim';
+      else if (email.toLowerCase() === 'agent@noble.com') resolvedName = 'Hamdi Ahmed';
+      else resolvedName = email.split('@')[0];
+    }
+    setLoggedInName(resolvedName);
+    localStorage.setItem('noble_logged_in_name', resolvedName);
+    
     localStorage.setItem('noble_logged_in', 'true');
     setIsLoggedIn(true);
+    setActiveTab('dashboard');
+    setTabHistory([]);
   };
 
   // Dynamically compute header info based on active tab
@@ -145,6 +169,11 @@ export default function App() {
         return {
           title: 'Client Database',
           subtitle: 'Manage travel agency profiles, corporate contracts, and credit limits',
+        };
+      case 'client-invoice':
+        return {
+          title: 'Client Invoice Metrics',
+          subtitle: 'Detailed report of client net revenues, discounts, passenger ticket volumes, and refunds',
         };
       case 'tickets':
         return {
@@ -191,8 +220,9 @@ export default function App() {
     { id: 'tickets', label: 'Manage Ticket', icon: Ticket, category: 'Travel Desk' },
     { id: 'visa', label: 'Manage Visa', icon: Fingerprint, category: 'Travel Desk' },
     { id: 'customers', label: 'Client Accounts', icon: Users, category: 'Travel Desk' },
+    ...(loggedInRole === 'admin' ? [{ id: 'client-invoice', label: 'Client Invoice', icon: FileText, category: 'Travel Desk' }] : []),
     { id: 'daily-report', label: 'Daily Report', icon: TrendingUp, category: 'Travel Desk' },
-    { id: 'quotation', label: 'Quotation', icon: FileText, category: 'Travel Desk' },
+    ...(loggedInRole === 'admin' ? [{ id: 'quotation', label: 'Quotation', icon: FileText, category: 'Travel Desk' }] : []),
     
     { id: 'refunds', label: 'Refund Claims', icon: RotateCcw, category: 'Settlement Office' },
     { id: 'settings', label: 'Agency Settings', icon: SettingsIcon, category: 'Settlement Office' },
@@ -290,11 +320,11 @@ export default function App() {
         <div className="mt-auto p-5 border-t border-slate-800/80 bg-slate-950/40 space-y-4">
           <div className="flex items-center gap-3 text-white text-sm">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 border-2 border-slate-700 flex items-center justify-center font-bold text-xs text-white uppercase shadow-inner">
-              {userRole === 'admin' ? 'JD' : userRole === 'cashier' ? 'HI' : 'AK'}
+              {loggedInName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'JD'}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-white truncate text-xs leading-none">
-                {userRole === 'admin' ? 'Jane Doe' : userRole === 'cashier' ? 'Hamze Ismail Ali' : 'Abdi Kanim'}
+                {loggedInName}
               </p>
               <p className="text-[9px] font-mono text-blue-400 mt-1.5 uppercase tracking-wider font-extrabold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
@@ -472,9 +502,10 @@ export default function App() {
               >
                 {activeTab === 'dashboard' && <Dashboard userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'customers' && <Customers />}
+                {activeTab === 'client-invoice' && loggedInRole === 'admin' && <ClientInvoice />}
                 {activeTab === 'tickets' && <Tickets userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'visa' && <Visa userRole={userRole} loggedInEmail={loggedInEmail} />}
-                {activeTab === 'quotation' && <Quotation userRole={userRole} loggedInEmail={loggedInEmail} />}
+                {activeTab === 'quotation' && loggedInRole === 'admin' && <Quotation userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'refunds' && <Refunds />}
                 {activeTab === 'daily-report' && <DailyReport userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'settings' && <Settings />}

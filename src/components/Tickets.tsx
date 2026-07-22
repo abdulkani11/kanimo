@@ -4,6 +4,7 @@ import {
   Plus, 
   Trash2, 
   Calculator, 
+  Percent,
   CheckCircle2, 
   X, 
   Download, 
@@ -88,6 +89,13 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   const [vendorCommissionPercent, setVendorCommissionPercent] = useState('9');
   const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
+  const [commPromptData, setCommPromptData] = useState<{
+    isOpen: boolean;
+    normalComm: number;
+    customerId: string;
+    mobile: string;
+    email: string;
+  } | null>(null);
   const [salesDate, setSalesDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [bookingCompany, setBookingCompany] = useState<'B2B' | 'SABRE' | ''>('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; pnr: string } | null>(null);
@@ -199,7 +207,9 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
         const newPassenger = { ...p, [field]: value };
         // Sync fare to net if user changes net and fare is not yet set
         if (field === 'net' && (Number(p.fare) === 0 || p.fare === undefined)) {
-          newPassenger.fare = value;
+          if (tripType !== 'Date Change') {
+            newPassenger.fare = value;
+          }
         }
         // Sync net to fare if user changes fare and net is not yet set
         if (field === 'fare' && (Number(p.net) === 0 || p.net === undefined || Number(p.net) === Number(p.fare))) {
@@ -1074,7 +1084,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                                 <button
                                   id={`btn-edit-${inv.id}`}
                                   onClick={() => enterEditMode(inv)}
-                                  className={`p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors cursor-pointer ${userRole === 'cashier' || inv.status.toLowerCase() === 'paid' ? 'hidden' : ''}`}
+                                  className={`p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors cursor-pointer ${userRole === 'cashier' || inv.status.toLowerCase() === 'paid' || inv.status.toLowerCase() === 'partial' ? 'hidden' : ''}`}
                                   title="Edit Ticket"
                                 >
                                   <Pencil className="w-4 h-4" />
@@ -1084,7 +1094,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                                 <button
                                   id={`btn-delete-${inv.id}`}
                                   onClick={() => promptDeleteInvoice(inv.id, inv.pnr)}
-                                  className={`p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer ${(userRole === 'admin' || userRole === 'user') && inv.status.toLowerCase() !== 'paid' ? '' : 'hidden'}`}
+                                  className={`p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer ${(userRole === 'admin' || userRole === 'user') && inv.status.toLowerCase() !== 'paid' && inv.status.toLowerCase() !== 'partial' ? '' : 'hidden'}`}
                                   title="Void & Delete Ticket"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1269,9 +1279,13 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                       setFormCustomerId(val);
                       const selectedCust = customers.find(c => c.id === val);
                       if (selectedCust) {
-                        setCustomerCommissionPercent(String(selectedCust.commissionPercent));
-                        setMobileNumber(selectedCust.mobile || '');
-                        setEmail(selectedCust.email || '');
+                        setCommPromptData({
+                          isOpen: true,
+                          normalComm: selectedCust.commissionPercent,
+                          customerId: val,
+                          mobile: selectedCust.mobile || '',
+                          email: selectedCust.email || '',
+                        });
                       }
                     }}
                     className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-extrabold text-slate-900 focus:outline-none focus:border-blue-500"
@@ -2164,6 +2178,60 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modern Commission Choice Modal */}
+      {commPromptData && commPromptData.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center space-y-6">
+            
+            {/* Icon Header */}
+            <div className="w-14 h-14 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto shadow-sm">
+              <Percent className="w-6 h-6" />
+            </div>
+
+            {/* Title & Description */}
+            <div className="space-y-2">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Customer Commission Rate</h3>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+                Apply default commission percent for this client account or keep at 0%?
+              </p>
+            </div>
+
+            {/* Options grid */}
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              {/* Option A: Normal Comm % */}
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomerCommissionPercent(String(commPromptData.normalComm));
+                  setMobileNumber(commPromptData.mobile);
+                  setEmail(commPromptData.email);
+                  setCommPromptData(null);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] text-white p-4 rounded-2xl transition-all shadow-md flex flex-col items-center justify-center gap-1 cursor-pointer border border-blue-700"
+              >
+                <span className="text-xl font-black font-mono tracking-tight">{commPromptData.normalComm}%</span>
+                <span className="text-[9px] font-extrabold uppercase tracking-wider">Use Normal %</span>
+              </button>
+
+              {/* Option B: Keeping 0% */}
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomerCommissionPercent('0');
+                  setMobileNumber(commPromptData.mobile);
+                  setEmail(commPromptData.email);
+                  setCommPromptData(null);
+                }}
+                className="bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-750 hover:scale-[1.02] active:scale-[0.98] text-slate-800 dark:text-slate-200 p-4 rounded-2xl transition-all border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1 cursor-pointer"
+              >
+                <span className="text-xl font-black font-mono tracking-tight">0%</span>
+                <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Keep 0%</span>
+              </button>
+            </div>
+            
           </div>
         </div>
       )}

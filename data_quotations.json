@@ -14,10 +14,18 @@
         "price": 850,
         "quantity": 10,
         "subtotal": 8500
+      },
+      {
+        "description": "Ethiopian Airlines: Jeddah (JED) - Addis Ababa (ADD) - Hargeisa (HGA)",
+        "cabinClass": "Economy",
+        "dateTime": "2026-08-25 18:30",
+        "price": 850,
+        "quantity": 10,
+        "subtotal": 8500
       }
     ],
     "note": "Please note that the prices are subject to seat availability and might change until ticket is fully issued. Cabins are subject to carrier guidelines.",
-    "totalAmount": 8500,
+    "totalAmount": 17000,
     "createdBy": "admin@noble.com",
     "createdAt": "2026-07-22T10:00:00.000Z"
   }

@@ -2,19 +2,29 @@
   {
     "id": "admin@noble.com",
     "email": "admin@noble.com",
+    "name": "Jane Doe",
     "password": "admin123",
     "role": "admin"
   },
   {
     "id": "cashier@noble.com",
     "email": "cashier@noble.com",
+    "name": "Mohamed Ibrahim",
     "password": "cashier123",
     "role": "cashier"
   },
   {
     "id": "agent@noble.com",
     "email": "agent@noble.com",
+    "name": "Hamdi Ahmed",
     "password": "agent123",
+    "role": "user"
+  },
+  {
+    "id": "fatah@noble.com",
+    "name": "ABDIFATAH",
+    "email": "fatah@noble.com",
+    "password": "1234",
     "role": "user"
   }
 ]
