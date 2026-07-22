@@ -73,6 +73,9 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [paymentDescription, setPaymentDescription] = useState('');
+  const [accountsList, setAccountsList] = useState<string[]>([]);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState('');
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,15 +110,18 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [visasRes, custRes] = await Promise.all([
+      const [visasRes, custRes, actRes] = await Promise.all([
         fetch('/api/visas'),
-        fetch('/api/customers')
+        fetch('/api/customers'),
+        fetch('/api/accounts')
       ]);
-      if (visasRes.ok && custRes.ok) {
+      if (visasRes.ok && custRes.ok && actRes.ok) {
         const vData = await visasRes.json();
         const cData = await custRes.json();
+        const aData = await actRes.json();
         setVisas(vData);
         setCustomers(cData);
+        setAccountsList(aData || []);
       }
     } catch (err) {
       console.error('Error fetching visa data:', err);
@@ -315,6 +321,31 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
     setPaymentDescription('');
     setIsPaymentModalOpen(true);
   };
+  const handleCreateAccount = async () => {
+    const clean = newAccountName.trim();
+    if (!clean) return;
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: clean })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAccountsList(data.accounts || []);
+        setPaymentAccount(clean.toUpperCase());
+        setNewAccountName('');
+        setIsCreatingAccount(false);
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to create account');
+      }
+    } catch (err) {
+      console.error('Error creating account:', err);
+      alert('Network error while creating account.');
+    }
+  };
+
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -530,6 +561,7 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                     <th className="py-4 px-4">Sales Date</th>
                     <th className="py-4 px-4 text-right">Net</th>
                     <th className="py-4 px-4 text-right">Paid</th>
+                    <th className="py-4 px-4 text-center">Account</th>
                     <th className="py-4 px-4 text-right">Due</th>
                     <th className="py-4 px-4 text-center">Status</th>
                     <th className="py-4 px-4 text-center">Action</th>
@@ -571,6 +603,9 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                           </td>
                           <td className="py-4 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
                             ${v.paidAmount.toFixed(2)}
+                          </td>
+                          <td className="py-4 px-4 text-center font-mono font-bold text-[10px] uppercase text-slate-500 truncate max-w-[90px]" title={v.paymentMethod}>
+                            {v.paymentMethod || '-'}
                           </td>
                           <td className="py-4 px-4 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
                             ${v.dueAmount.toFixed(2)}
@@ -887,13 +922,9 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500"
                   >
                     <option value="">Choose Account</option>
-                    <option value="ZAAD">ZAAD</option>
-                    <option value="EDAHAB">EDAHAB</option>
-                    <option value="CASH">CASH</option>
-                    <option value="CARD">CARD</option>
-                    <option value="WALLET">WALLET</option>
-                    <option value="DAHASHIL BANK">DAHASHIL BANK</option>
-                    <option value="DARASALAM BANK">DARASALAM BANK</option>
+                    {accountsList.map((act) => (
+                      <option key={act} value={act}>{act}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1318,22 +1349,55 @@ export default function Visa({ userRole, loggedInEmail }: VisaProps) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1.5">Account / Channel*</label>
-                <select
-                  required
-                  value={paymentAccount}
-                  onChange={(e) => setPaymentAccount(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select Account</option>
-                  <option value="ZAAD">ZAAD</option>
-                  <option value="EDAHAB">EDAHAB</option>
-                  <option value="CASH">CASH</option>
-                  <option value="CARD">CARD</option>
-                  <option value="WALLET">WALLET</option>
-                  <option value="DAHASHIL BANK">DAHASHIL BANK</option>
-                  <option value="DARASALAM BANK">DARASALAM BANK</option>
-                </select>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1.5">
+                  Account / Channel<span className="text-rose-500">*</span>
+                </label>
+                {isCreatingAccount ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="New Account Name"
+                      value={newAccountName}
+                      onChange={(e) => setNewAccountName(e.target.value)}
+                      className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500 shadow-inner"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateAccount}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingAccount(false);
+                        setNewAccountName('');
+                      }}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <select
+                      required
+                      value={paymentAccount}
+                      onChange={(e) => setPaymentAccount(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select Account</option>
+                      {accountsList.map((act) => (
+                        <option key={act} value={act}>{act}</option>
+                      ))}
+                    </select>
+                    <div className="mt-1.5 text-[10px] text-slate-500 font-medium">
+                      Create account here. <span className="text-blue-500 cursor-pointer font-semibold hover:underline" onClick={() => setIsCreatingAccount(true)}>Create account</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

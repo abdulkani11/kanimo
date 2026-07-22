@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useDeferredValue } from 'react';
 import { 
   Search, 
   Plus, 
@@ -48,6 +48,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   const [filterCustomerId, setFilterCustomerId] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [entriesPerPage, setEntriesPerPage] = useState<number>(10);
 
   // Active/Applied Filters for instant local search
@@ -82,6 +83,9 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [paymentDescription, setPaymentDescription] = useState('');
+  const [accountsList, setAccountsList] = useState<string[]>([]);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState('');
 
   // New user-requested form fields
   const [customInvoiceId, setCustomInvoiceId] = useState('');
@@ -157,10 +161,12 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
     Promise.all([
       fetch('/api/invoices').then(res => res.json()),
       fetch('/api/customers').then(res => res.json()),
+      fetch('/api/accounts').then(res => res.json()),
     ])
-      .then(([invData, custData]) => {
+      .then(([invData, custData, actData]) => {
         setInvoices(invData);
         setCustomers(custData);
+        setAccountsList(actData || []);
         if (custData.length > 0 && !formCustomerId) {
           setFormCustomerId(custData[0].id);
         }
@@ -256,6 +262,31 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
     
     setPaymentDescription('');
     setIsAddPaymentModalOpen(true);
+  };
+
+  const handleCreateAccount = async () => {
+    const clean = newAccountName.trim();
+    if (!clean) return;
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: clean })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAccountsList(data.accounts || []);
+        setPaymentAccount(clean.toUpperCase());
+        setNewAccountName('');
+        setIsCreatingAccount(false);
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to create account');
+      }
+    } catch (err) {
+      console.error('Error creating account:', err);
+      alert('Network error while creating account.');
+    }
   };
 
   const handleAddPaymentSubmit = async (e: React.FormEvent) => {
@@ -635,13 +666,14 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
       // 1. Search Query
+      const lowerSearch = deferredSearchQuery.toLowerCase();
       const passengersString = inv.passengers.map(p => p.name).join(' ').toLowerCase();
       const matchesSearch = 
-        inv.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.pnr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        passengersString.includes(searchQuery.toLowerCase());
+        inv.id.toLowerCase().includes(lowerSearch) ||
+        inv.pnr.toLowerCase().includes(lowerSearch) ||
+        inv.ticketNumber.toLowerCase().includes(lowerSearch) ||
+        inv.customerName.toLowerCase().includes(lowerSearch) ||
+        passengersString.includes(lowerSearch);
 
       // 2. Applied Sales Date (checking createdAt date or format comparison)
       const matchesSalesDate = appliedSalesDate 
@@ -923,6 +955,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                       <th className="p-4">Sales Date</th>
                       <th className="p-4 text-right">Net</th>
                       <th className="p-4 text-right">Paid</th>
+                      <th className="p-4 text-center">Account</th>
                       <th className="p-4 text-right">Due</th>
                       <th className="p-4 text-center">Status</th>
                       <th className="p-4">User</th>
@@ -999,6 +1032,11 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                             {/* Paid Amount */}
                             <td className="p-4 text-right font-mono text-emerald-600 font-bold">
                               $ {inv.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+
+                            {/* Payment Account */}
+                            <td className="p-4 text-center font-mono font-bold text-[10px] uppercase text-slate-500 truncate max-w-[90px]" title={inv.paymentMethod}>
+                              {inv.paymentMethod || '-'}
                             </td>
 
                             {/* Due Balance */}
@@ -1551,10 +1589,10 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                       onChange={(e) => setPaymentMethod(e.target.value as any)}
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
                     >
-                      <option value="Cash">Cash Channel</option>
-                      <option value="Bank">Bank Wire</option>
-                      <option value="Mobile Money">Mobile Money</option>
-                      <option value="Card">Credit Card</option>
+                      <option value="">Select Account</option>
+                      {accountsList.map(act => (
+                        <option key={act} value={act}>{act}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -2044,24 +2082,51 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
                     Account<span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    required
-                    value={paymentAccount}
-                    onChange={(e) => setPaymentAccount(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-850 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="">Enter Account</option>
-                    <option value="ZAAD">ZAAD</option>
-                    <option value="EDAHAB">EDAHAB</option>
-                    <option value="CASH">CASH</option>
-                    <option value="CARD">CARD</option>
-                    <option value="WALLET">WALLET</option>
-                    <option value="DAHASHIL BANK">DAHASHIL BANK</option>
-                    <option value="DARASALAM BANK">DARASALAM BANK</option>
-                  </select>
-                  <div className="text-[9px] text-slate-400 mt-1 font-medium">
-                    Create account here. <span className="text-blue-500 cursor-pointer font-semibold hover:underline">Create account</span>
-                  </div>
+                  {isCreatingAccount ? (
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        placeholder="New Account Name"
+                        value={newAccountName}
+                        onChange={(e) => setNewAccountName(e.target.value)}
+                        className="flex-1 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-850 focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreateAccount}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-2 rounded-lg text-xs cursor-pointer shadow-sm"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingAccount(false);
+                          setNewAccountName('');
+                        }}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold px-3 py-2 rounded-lg text-xs cursor-pointer shadow-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        required
+                        value={paymentAccount}
+                        onChange={(e) => setPaymentAccount(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-850 focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="">Enter Account</option>
+                        {accountsList.map((act) => (
+                          <option key={act} value={act}>{act}</option>
+                        ))}
+                      </select>
+                      <div className="text-[9px] text-slate-400 mt-1 font-medium">
+                        Create account here. <span className="text-blue-500 cursor-pointer font-semibold hover:underline" onClick={() => setIsCreatingAccount(true)}>Create account</span>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">

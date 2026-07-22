@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FileText, Calendar, Users, DollarSign, Search, ShieldAlert, Sparkles, Receipt, Globe, Tag, Scale, Printer } from 'lucide-react';
-
+// @ts-ignore
+import logoImg from '../assets/images/dual_airline_logo.png';
 interface Passenger {
   name: string;
 }
@@ -471,9 +472,11 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
         {/* Letterhead */}
         <div className="border-b-4 border-slate-900 pb-4 mb-6 flex justify-between items-end">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-950 font-mono">NOBLE TRAVEL AGENCY</h1>
-            <p className="text-[10px] font-bold tracking-widest text-slate-600 font-mono uppercase mt-0.5">IATA Accredited Passenger Sales Agent</p>
-            <p className="text-[9px] text-slate-550 font-mono mt-1">Airport Road, Mogadishu, Somalia | Tel: +252 61 222 3444 | info@nobletravel.com</p>
+            <img 
+              src={logoImg} 
+              alt="Noble Travel Agency" 
+              className="h-16 w-auto object-contain"
+            />
           </div>
           <div className="text-right text-xs font-mono">
             <p className="font-bold">DATE: {new Date().toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>

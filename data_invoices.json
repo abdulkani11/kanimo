@@ -168,9 +168,9 @@
     "vendorCommission": 40.86,
     "customerCommission": 0,
     "netAmount": 5401.22,
-    "paidAmount": 0,
-    "dueAmount": 5401.22,
-    "status": "Unpaid",
+    "paidAmount": 5401.22,
+    "dueAmount": 0,
+    "status": "Refunded",
     "createdAt": "2026-07-22T00:00:00.000Z",
     "paymentMethod": "Bank",
     "passengers": [
@@ -218,11 +218,11 @@
     "vendorCommission": 38.97,
     "customerCommission": 0,
     "netAmount": 315.69,
-    "paidAmount": 375.69,
+    "paidAmount": 315.69,
     "dueAmount": 0,
     "status": "Paid",
     "createdAt": "2026-07-21T00:00:00.000Z",
-    "paymentMethod": "Bank",
+    "paymentMethod": "ZAAD",
     "passengers": [
       {
         "name": "ali abdi",
@@ -273,7 +273,7 @@
     "dueAmount": 0,
     "status": "Paid",
     "createdAt": "2026-07-22T09:00:00Z",
-    "paymentMethod": "Card",
+    "paymentMethod": "EDAHAB",
     "passengers": [
       {
         "name": "Sarah Ali",
@@ -364,7 +364,7 @@
     "dueAmount": 0,
     "status": "Paid",
     "createdAt": "2026-07-22T09:00:00Z",
-    "paymentMethod": "Card",
+    "paymentMethod": "EDAHAB",
     "passengers": [
       {
         "name": "Linda Ali",

@@ -143,6 +143,7 @@ const CUSTOMERS_FILE = path.join(DB_DIR, 'data_customers.json');
 const USERS_FILE = path.join(DB_DIR, 'data_users.json');
 const VISAS_FILE = path.join(DB_DIR, 'data_visas.json');
 const QUOTATIONS_FILE = path.join(DB_DIR, 'data_quotations.json');
+const ACCOUNTS_FILE = path.join(DB_DIR, 'data_accounts.json');
 
 // Copy initial database files to persistent storage if needed
 if (DB_DIR === '/var/data') {
@@ -152,6 +153,7 @@ if (DB_DIR === '/var/data') {
     const srcUsers = path.join(process.cwd(), 'data_users.json');
     const srcVisas = path.join(process.cwd(), 'data_visas.json');
     const srcQuotations = path.join(process.cwd(), 'data_quotations.json');
+    const srcAccounts = path.join(process.cwd(), 'data_accounts.json');
     if (!fs.existsSync(INVOICES_FILE) && fs.existsSync(srcInvoices)) {
       fs.copyFileSync(srcInvoices, INVOICES_FILE);
       console.log('[Noble DB] Copied data_invoices.json to persistent volume /var/data');
@@ -172,6 +174,10 @@ if (DB_DIR === '/var/data') {
       fs.copyFileSync(srcQuotations, QUOTATIONS_FILE);
       console.log('[Noble DB] Copied data_quotations.json to persistent volume /var/data');
     }
+    if (!fs.existsSync(ACCOUNTS_FILE) && fs.existsSync(srcAccounts)) {
+      fs.copyFileSync(srcAccounts, ACCOUNTS_FILE);
+      console.log('[Noble DB] Copied data_accounts.json to persistent volume /var/data');
+    }
   } catch (err) {
     console.error('[Noble DB] Failed to copy database files to persistent volume:', err);
   }
@@ -183,45 +189,42 @@ let invoices = [];
 let users = [];
 let visas = [];
 let quotations = [];
+let accounts = [];
 
 const saveInvoicesToDisk = () => {
-  try {
-    fs.writeFileSync(INVOICES_FILE, JSON.stringify(invoices, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing invoices to disk:', err);
-  }
+  fs.writeFile(INVOICES_FILE, JSON.stringify(invoices, null, 2), 'utf8', (err) => {
+    if (err) console.error('Error writing invoices to disk:', err);
+  });
 };
 
 const saveCustomersToDisk = () => {
-  try {
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(customers, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing customers to disk:', err);
-  }
+  fs.writeFile(CUSTOMERS_FILE, JSON.stringify(customers, null, 2), 'utf8', (err) => {
+    if (err) console.error('Error writing customers to disk:', err);
+  });
 };
 
 const saveUsersToDisk = () => {
-  try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing users to disk:', err);
-  }
+  fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), 'utf8', (err) => {
+    if (err) console.error('Error writing users to disk:', err);
+  });
 };
 
 const saveVisasToDisk = () => {
-  try {
-    fs.writeFileSync(VISAS_FILE, JSON.stringify(visas, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing visas to disk:', err);
-  }
+  fs.writeFile(VISAS_FILE, JSON.stringify(visas, null, 2), 'utf8', (err) => {
+    if (err) console.error('Error writing visas to disk:', err);
+  });
 };
 
 const saveQuotationsToDisk = () => {
-  try {
-    fs.writeFileSync(QUOTATIONS_FILE, JSON.stringify(quotations, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing quotations to disk:', err);
-  }
+  fs.writeFile(QUOTATIONS_FILE, JSON.stringify(quotations, null, 2), 'utf8', (err) => {
+    if (err) console.error('Error writing quotations to disk:', err);
+  });
+};
+
+const saveAccountsToDisk = () => {
+  fs.writeFile(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2), 'utf8', (err) => {
+    if (err) console.error('Error writing accounts to disk:', err);
+  });
 };
 
 const initialUsers = [
@@ -327,6 +330,31 @@ try {
 } catch (err) {
   console.error('Error reading quotations from disk:', err);
   quotations = [];
+}
+
+const initialAccounts = [
+  "ZAAD",
+  "EDAHAB",
+  "CASH",
+  "CARD",
+  "WALLET",
+  "DAHASHIL BANK",
+  "DARASALAM BANK"
+];
+
+try {
+  if (fs.existsSync(ACCOUNTS_FILE)) {
+    const raw = fs.readFileSync(ACCOUNTS_FILE, 'utf8');
+    accounts = JSON.parse(raw);
+    console.log(`[Noble DB] Loaded ${accounts.length} accounts from persistent file storage.`);
+  } else {
+    accounts = initialAccounts;
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(initialAccounts, null, 2), 'utf8');
+    console.log(`[Noble DB] Seeded default accounts list.`);
+  }
+} catch (err) {
+  console.error('Error reading accounts from disk:', err);
+  accounts = initialAccounts;
 }
 
 
@@ -1294,6 +1322,53 @@ app.get('/api/payments', async (req, res) => {
   res.json(payments);
 });
 
+// Accounts API
+app.get('/api/accounts', async (req, res) => {
+  try {
+    if (db) {
+      const snapshot = await db.collection('accounts').get();
+      if (!snapshot.empty) {
+        const list = snapshot.docs.map(doc => doc.id);
+        return res.json(list);
+      } else {
+        // Seed firestore accounts if empty
+        for (const act of accounts) {
+          await db.collection('accounts').doc(act).set({});
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('Error fetching accounts from Firestore:', err);
+  }
+  res.json(accounts);
+});
+
+app.post('/api/accounts', async (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'Account name is required and must be a string.' });
+  }
+  const cleanName = name.trim().toUpperCase();
+  if (!cleanName) {
+    return res.status(400).json({ error: 'Account name cannot be empty.' });
+  }
+
+  try {
+    if (db) {
+      await db.collection('accounts').doc(cleanName).set({});
+    }
+  } catch (err: any) {
+    console.error('Error writing account to Firestore:', err);
+  }
+
+  if (!accounts.includes(cleanName)) {
+    accounts.push(cleanName);
+    saveAccountsToDisk();
+  }
+
+  res.status(201).json({ success: true, name: cleanName, accounts });
+});
+
 app.post('/api/payments', async (req, res) => {
   const { invoiceId, amount, method, referenceNumber, status } = req.body;
   try {
@@ -1344,7 +1419,8 @@ app.post('/api/payments', async (req, res) => {
       await invRef.update({
         paidAmount: updatedPaidAmount,
         dueAmount: updatedDueAmount,
-        status: updatedStatus
+        status: updatedStatus,
+        paymentMethod: method || req.body.channel || 'Cash'
       });
 
       const custRef = db.collection('customers').doc(invoice.customerId);
@@ -1401,6 +1477,7 @@ app.post('/api/payments', async (req, res) => {
   invoice.paidAmount = updatedPaidAmount;
   invoice.dueAmount = updatedDueAmount;
   invoice.status = updatedStatus;
+  invoice.paymentMethod = method || req.body.channel || 'Cash';
 
   const customer = customers.find(c => c.id === invoice.customerId);
   if (customer) {
