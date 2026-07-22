@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Calendar, Users, DollarSign, Search, ShieldAlert, Sparkles, Receipt, Globe } from 'lucide-react';
+import { FileText, Calendar, Users, DollarSign, Search, ShieldAlert, Sparkles, Receipt, Globe, Tag, Scale } from 'lucide-react';
 
 interface Passenger {
   name: string;
@@ -13,6 +13,7 @@ interface TicketInvoice {
   netAmount: number;
   vendorCommission: number;
   customerCommission: number;
+  discount?: number;
   status: string;
   createdAt: string;
   createdBy?: string;
@@ -134,6 +135,13 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
   const totalNet = filteredInvoices.reduce((sum, inv) => sum + (inv.netAmount || 0), 0);
   const totalVendorComm = filteredInvoices.reduce((sum, inv) => sum + (inv.vendorCommission || 0), 0);
   const totalCustComm = filteredInvoices.reduce((sum, inv) => sum + (inv.customerCommission || 0), 0);
+  const totalDiscount = filteredInvoices.reduce((sum, inv) => sum + (inv.discount || 0), 0);
+
+  // USER FORMULA: TOTAL NET REVENUE = customer comm + vendor commission - discount
+  const totalNetRevenue = totalCustComm + totalVendorComm - totalDiscount;
+
+  // USER FORMULA: REMAIN = total net revenue - net amount
+  const remainBalance = totalNetRevenue - totalNet;
 
   return (
     <div className="space-y-6">
@@ -226,61 +234,85 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
         </div>
       </div>
 
-      {/* Bento Grid Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Bento Grid Stats Cards (6 summary boxes) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         
-        {/* Total Tickets */}
-        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-blue-600 dark:text-blue-400">
-            <Receipt className="w-6 h-6" />
+        {/* 1. Total Tickets */}
+        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-blue-600 dark:text-blue-400 shrink-0">
+            <Receipt className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Tickets Issued</p>
-            <h4 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">{totalTickets}</h4>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Tickets Issued</p>
+            <h4 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 font-mono">{totalTickets}</h4>
           </div>
         </div>
 
-        {/* Total Net Volume */}
-        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl text-emerald-600 dark:text-emerald-400">
-            <DollarSign className="w-6 h-6" />
+        {/* 2. Total Net Revenue */}
+        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl text-emerald-600 dark:text-emerald-400 shrink-0">
+            <DollarSign className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Net Revenue</p>
-            <h4 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
-              $ {totalNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Total Net Revenue</p>
+            <h4 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 font-mono">
+              $ {totalNetRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
-            <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-bold">
-              Base Fare: $ {totalBaseFare.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
           </div>
         </div>
 
-        {/* Total Vendor Commission */}
-        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl text-amber-600 dark:text-amber-400">
-            <Sparkles className="w-6 h-6" />
+        {/* 3. Total Vendor Commission */}
+        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl text-amber-600 dark:text-amber-400 shrink-0">
+            <Sparkles className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vendor Commission</p>
-            <h4 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Vendor Comm.</p>
+            <h4 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 font-mono">
               $ {totalVendorComm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
 
-        {/* Total Customer Commission */}
-        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="p-3 bg-violet-50 dark:bg-violet-950/30 rounded-xl text-violet-600 dark:text-violet-400">
-            <ShieldAlert className="w-6 h-6" />
+        {/* 4. Total Customer Commission */}
+        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="p-2.5 bg-violet-50 dark:bg-violet-950/30 rounded-xl text-violet-600 dark:text-violet-400 shrink-0">
+            <ShieldAlert className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Customer Comm.</p>
-            <h4 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Customer Comm.</p>
+            <h4 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 font-mono">
               $ {totalCustComm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
+
+        {/* 5. Total Discount Box */}
+        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl text-rose-600 dark:text-rose-400 shrink-0">
+            <Tag className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Total Discount</p>
+            <h4 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 font-mono">
+              $ {totalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </h4>
+          </div>
+        </div>
+
+        {/* 6. Remain Box (Remain = Total Net Revenue - Net Amount) */}
+        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Remain</p>
+            <h4 className="text-base font-extrabold mt-0.5 font-mono text-slate-900 dark:text-white">
+              $ {Math.abs(remainBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </h4>
+          </div>
+        </div>
+
       </div>
 
       {/* Tickets Report Table */}
@@ -301,10 +333,10 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
                 <th className="px-5 py-3.5 text-center w-12">#</th>
                 <th className="px-5 py-3.5">Ticket Number</th>
                 <th className="px-5 py-3.5">Passenger Name</th>
-                <th className="px-5 py-3.5 text-right">Base Fare</th>
                 <th className="px-5 py-3.5 text-right">Net Amount</th>
                 <th className="px-5 py-3.5 text-right">Vendor Comm.</th>
                 <th className="px-5 py-3.5 text-right">Customer Comm.</th>
+                <th className="px-5 py-3.5 text-right">Discount</th>
                 <th className="px-5 py-3.5 text-center">Status</th>
                 {(userRole === 'admin' || userRole === 'cashier') && selectedUser === 'all' && (
                   <th className="px-5 py-3.5">Created By</th>
@@ -341,9 +373,6 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3.5 text-right font-mono text-slate-900 dark:text-slate-100">
-                      $ {(inv.baseFare || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
                     <td className="px-5 py-3.5 text-right font-mono text-slate-950 dark:text-slate-100">
                       $ {inv.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
@@ -352,6 +381,9 @@ export default function DailyReport({ userRole = 'admin', loggedInEmail = 'admin
                     </td>
                     <td className="px-5 py-3.5 text-right font-mono text-violet-600">
                       $ {inv.customerCommission.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-mono text-rose-600">
+                      $ {(inv.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-5 py-3.5 text-center">
                       {(() => {
