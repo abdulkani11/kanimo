@@ -20,16 +20,19 @@ import {
   Upload,
   FileJson,
   Check,
-  FileText
+  ChevronDown,
+  FileText,
+  ArrowLeft
 } from 'lucide-react';
 import { Customer, TicketInvoice, Passenger, TripType, InvoiceStatus } from '../types';
 import logoImg from '../assets/images/dual_airline_logo.png';
 
 interface TicketsProps {
   userRole?: 'admin' | 'cashier' | 'user';
+  loggedInEmail?: string;
 }
 
-export default function Tickets({ userRole = 'admin' }: TicketsProps) {
+export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@noble.com' }: TicketsProps) {
   const [invoices, setInvoices] = useState<TicketInvoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,13 +71,23 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Bank' | 'Mobile Money' | 'Card'>('Bank');
   const [salesUser, setSalesUser] = useState('HAMZE ISMAIL ALI');
 
+  // Add Payment Modal states
+  const [isAddPaymentModalOpen, setIsAddPaymentModalOpen] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState<TicketInvoice | null>(null);
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentAccount, setPaymentAccount] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('PAID');
+  const [paymentDescription, setPaymentDescription] = useState('');
+
   // New user-requested form fields
   const [customInvoiceId, setCustomInvoiceId] = useState('');
   const [customerCommissionPercent, setCustomerCommissionPercent] = useState('6');
   const [vendorCommissionPercent, setVendorCommissionPercent] = useState('9');
   const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
-  const [salesDate, setSalesDate] = useState(new Date().toISOString().split('T')[0]);
+  const [salesDate, setSalesDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [bookingCompany, setBookingCompany] = useState<'B2B' | 'SABRE' | ''>('');
 
   // Dynamic passengers state
@@ -96,6 +109,17 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const handleBackSignal = (e: Event) => {
+      if (viewMode !== 'list') {
+        e.preventDefault();
+        setViewMode('list');
+      }
+    };
+    window.addEventListener('noble_go_back', handleBackSignal);
+    return () => window.removeEventListener('noble_go_back', handleBackSignal);
+  }, [viewMode]);
 
   useEffect(() => {
     if (userRole === 'admin') {
@@ -204,6 +228,103 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
     setAppliedStatus(filterStatus);
   };
 
+  const handleStatusClick = (inv: TicketInvoice) => {
+    const localToday = new Date().toLocaleDateString('en-CA');
+    setPaymentInvoice(inv);
+    setPaymentDate(localToday);
+    setPaymentAmount(inv.dueAmount !== undefined ? String(inv.dueAmount) : String(inv.netAmount - (inv.paidAmount || 0)));
+    setPaymentAccount(inv.paymentMethod || '');
+    setPaymentReference('');
+    
+    const statusUpper = (inv.status || 'Unpaid').toUpperCase();
+    if (statusUpper === 'PAID') setPaymentStatus('PAID');
+    else if (statusUpper === 'PARTIAL') setPaymentStatus('PARTIAL PAID');
+    else if (statusUpper === 'REFUNDED') setPaymentStatus('REFUND');
+    else setPaymentStatus('UNPAID');
+    
+    setPaymentDescription('');
+    setIsAddPaymentModalOpen(true);
+  };
+
+  const handleAddPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentInvoice) return;
+
+    try {
+      // 1. Post the payment record
+      const paymentRes = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceId: paymentInvoice.id,
+          amount: Number(paymentAmount) || 0,
+          method: paymentAccount || 'Cash',
+          referenceNumber: paymentReference || '',
+        }),
+      });
+
+      if (!paymentRes.ok) {
+        throw new Error('Failed to record payment');
+      }
+
+      const enteredAmt = Number(paymentAmount) || 0;
+      const netAmt = paymentInvoice.netAmount || 0;
+
+      // 2. Map status selection to backend expected values
+      let statusMapped = 'Unpaid';
+      if (paymentStatus === 'PAID') {
+        if (enteredAmt < netAmt) {
+          statusMapped = 'Partial'; // Auto-correct to Partial
+        } else {
+          statusMapped = 'Paid';
+        }
+      }
+      else if (paymentStatus === 'PARTIAL PAID') {
+        if (enteredAmt >= netAmt) {
+          statusMapped = 'Paid'; // Auto-correct to Paid
+        } else {
+          statusMapped = 'Partial';
+        }
+      }
+      else if (paymentStatus === 'REFUND') statusMapped = 'Refunded';
+
+      const invoiceUpdateBody: any = { 
+        status: statusMapped, 
+        paidAmount: enteredAmt,
+        paymentMethod: paymentAccount || 'Cash'
+      };
+
+      // 3. Update invoice status
+      const invoiceRes = await fetch(`/api/invoices/${paymentInvoice.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceUpdateBody),
+      });
+
+      if (!invoiceRes.ok) {
+        throw new Error('Failed to update invoice status');
+      }
+
+      // 4. Post audit log
+      await fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: loggedInEmail,
+          role: userRole === 'admin' ? 'Super Admin' : 'Finance Cashier',
+          action: 'Add Payment Modal',
+          details: `Recorded payment of $${paymentAmount} via ${paymentAccount || 'Cash'} and set status of invoice ${paymentInvoice.id} to ${statusMapped} (Reference: ${paymentReference || 'N/A'})`,
+        }),
+      });
+
+      fetchData();
+      setIsAddPaymentModalOpen(false);
+      setPaymentInvoice(null);
+    } catch (err) {
+      console.error('Error logging add payment details:', err);
+    }
+  };
+
   // Financial computations
   const totalPassengerFare = tripType === 'Refund' ? 0 : passengers.reduce((sum, p) => sum + (Number(p.fare) || Number(p.net) || 0), 0);
   const totalPassengerTax = tripType === 'Refund' ? 0 : passengers.reduce((sum, p) => {
@@ -231,7 +352,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
     return sum + custComm;
   }, 0) * 100) / 100;
   const totalPassengerRefund = passengers.reduce((sum, p) => sum + (Number(p.refund) || 0), 0);
-  const calculatedNetAmount = tripType === 'Refund' ? totalPassengerRefund : Math.round((parsedFare + parsedTax - parsedDiscount) * 100) / 100;
+  const calculatedNetAmount = tripType === 'Refund' ? totalPassengerRefund : Math.round((parsedFare + parsedTax - parsedDiscount + calculatedCustomerCommission) * 100) / 100;
   const calculatedDueAmount = Math.max(0, Math.round((calculatedNetAmount - parsedPaid) * 100) / 100);
   const calculatedProfit = Math.round((calculatedVendorCommission - calculatedCustomerCommission) * 100) / 100;
 
@@ -290,7 +411,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
     setBookingCompany(vendorCommPct === 7 ? 'SABRE' : 'B2B');
     setMobileNumber((invoice as any).mobileNumber || '');
     setEmail((invoice as any).email || '');
-    setSalesDate((invoice as any).salesDate || (invoice.createdAt ? invoice.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]));
+    setSalesDate(new Date().toLocaleDateString('en-CA'));
     
     setViewMode('edit');
   };
@@ -327,7 +448,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
     setCustomInvoiceId('INV-2026-' + nextNum);
 
     setVendorCommissionPercent('0');
-    setSalesDate(new Date().toISOString().split('T')[0]);
+    setSalesDate(new Date().toLocaleDateString('en-CA'));
     setPassengers([
       {
         name: '',
@@ -432,7 +553,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
       destination,
       departureDate,
       returnDate: tripType === 'Round Trip' ? returnDate : undefined,
-      vendorName,
+      vendorName: bookingCompany || vendorName || 'B2B',
       baseFare: parsedFare,
       tax: parsedTax,
       discount: parsedDiscount,
@@ -444,6 +565,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
       mobileNumber,
       email,
       salesDate,
+      createdBy: loggedInEmail,
     };
 
     try {
@@ -539,7 +661,16 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
       ? inv.status.toLowerCase() === appliedStatus.toLowerCase() 
       : true;
 
-    return matchesSearch && matchesSalesDate && matchesCustomer && matchesStatus;
+    // 5. Creator User Filter (Lock to own invoices if active role is user)
+    const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
+      ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
+      : loggedInEmail;
+      
+    const matchesCreator = userRole === 'user'
+      ? (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase()
+      : true;
+
+    return matchesSearch && matchesSalesDate && matchesCustomer && matchesStatus && matchesCreator;
   });
 
   // Limit to selected entries count
@@ -617,10 +748,18 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
           
           {/* Top KPI Summary Bar */}
           {(() => {
-            const totalTicketsIssued = invoices.length;
-            const totalRevenue = invoices.reduce((sum, i) => sum + i.netAmount, 0);
-            const totalCollected = invoices.reduce((sum, i) => sum + i.paidAmount, 0);
-            const totalOutstanding = invoices.reduce((sum, i) => sum + i.dueAmount, 0);
+            const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
+              ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
+              : loggedInEmail;
+            
+            const userInvoices = userRole === 'user'
+              ? invoices.filter(inv => (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase())
+              : invoices;
+
+            const totalTicketsIssued = userInvoices.length;
+            const totalRevenue = userInvoices.reduce((sum, i) => sum + i.netAmount, 0);
+            const totalCollected = userInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
+            const totalOutstanding = userInvoices.reduce((sum, i) => sum + i.dueAmount, 0);
 
             return (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -865,64 +1004,36 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                             <td className="p-4 text-center">
                               {userRole === 'user' ? (
                                 statusLower === 'refunded' ? (
-                                  <span style={{ fontWeight: 900 }} className="bg-indigo-500/10 text-indigo-650 border border-indigo-500/15 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  <span style={{ fontWeight: 900 }} className="bg-indigo-600 text-white border border-indigo-700 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
                                     Refunded
                                   </span>
                                 ) : statusLower === 'paid' ? (
-                                  <span style={{ fontWeight: 900 }} className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/15 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  <span style={{ fontWeight: 900 }} className="bg-emerald-600 text-white border border-emerald-700 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
                                     Paid
                                   </span>
                                 ) : statusLower === 'partial' ? (
-                                  <span style={{ fontWeight: 900 }} className="bg-amber-500/10 text-amber-650 border border-amber-500/15 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  <span style={{ fontWeight: 900 }} className="bg-amber-500 text-white border border-amber-600 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
                                     Partial
                                   </span>
                                 ) : (
-                                  <span style={{ fontWeight: 900 }} className="bg-rose-500/10 text-rose-600 border border-rose-500/15 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  <span style={{ fontWeight: 900 }} className="bg-rose-600 text-white border border-rose-700 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
                                     Unpaid
                                   </span>
                                 )
                               ) : (
-                                <select
-                                  value={inv.status}
-                                  onChange={async (e) => {
-                                    const newStatus = e.target.value;
-                                    try {
-                                      const res = await fetch(`/api/invoices/${inv.id}`, {
-                                        method: 'PUT',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ status: newStatus }),
-                                      });
-                                      if (res.ok) {
-                                        // Audit log action
-                                        await fetch('/api/audit-logs', {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            username: salesUser,
-                                            role: userRole === 'admin' ? 'Super Admin' : 'Finance Cashier',
-                                            action: 'Update Status',
-                                            details: `Directly altered status of invoice ${inv.id} to ${newStatus}`,
-                                          }),
-                                        });
-                                        fetchData();
-                                      }
-                                    } catch (err) {
-                                      console.error('Failed to quick-update status:', err);
-                                    }
-                                  }}
+                                <button
+                                  onClick={() => handleStatusClick(inv)}
                                   style={{ fontWeight: 900 }}
-                                  className={`font-black text-[10px] uppercase tracking-wider px-2 py-1.5 rounded-lg text-center shadow-sm cursor-pointer focus:outline-none border font-sans min-w-[85px] ${
-                                    statusLower === 'refunded' ? 'bg-indigo-500/10 text-indigo-650 border-indigo-500/15' :
-                                    statusLower === 'paid' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/15' :
-                                    statusLower === 'partial' ? 'bg-amber-500/10 text-amber-600 border-amber-500/15' :
-                                    'bg-rose-500/10 text-rose-600 border-rose-500/15'
+                                  className={`font-black text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg text-center shadow-sm cursor-pointer border font-sans min-w-[90px] flex items-center justify-between gap-1 focus:outline-none transition-all ${
+                                    statusLower === 'refunded' ? 'bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700' :
+                                    statusLower === 'paid' ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700' :
+                                    statusLower === 'partial' ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600' :
+                                    'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
                                   }`}
                                 >
-                                  <option value="Paid" style={{ fontWeight: 900 }} className="bg-white text-slate-800 font-black text-xs">Paid</option>
-                                  <option value="Partial" style={{ fontWeight: 900 }} className="bg-white text-slate-800 font-black text-xs">Partial</option>
-                                  <option value="Unpaid" style={{ fontWeight: 900 }} className="bg-white text-slate-800 font-black text-xs">Unpaid</option>
-                                  <option value="Refunded" style={{ fontWeight: 900 }} className="bg-white text-slate-800 font-black text-xs">Refunded</option>
-                                </select>
+                                  <span>{inv.status}</span>
+                                  <ChevronDown className="w-3.5 h-3.5 text-white/90" />
+                                </button>
                               )}
                             </td>
 
@@ -949,7 +1060,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                                 <button
                                   id={`btn-edit-${inv.id}`}
                                   onClick={() => enterEditMode(inv)}
-                                  className={`p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors cursor-pointer ${userRole === 'cashier' ? 'hidden' : ''}`}
+                                  className={`p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors cursor-pointer ${userRole === 'cashier' || inv.status.toLowerCase() === 'paid' ? 'hidden' : ''}`}
                                   title="Edit Ticket"
                                 >
                                   <Pencil className="w-4 h-4" />
@@ -959,7 +1070,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                                 <button
                                   id={`btn-delete-${inv.id}`}
                                   onClick={() => handleDeleteInvoice(inv.id, inv.pnr)}
-                                  className={`p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer ${userRole === 'admin' ? '' : 'hidden'}`}
+                                  className={`p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer ${(userRole === 'admin' || userRole === 'user') && inv.status.toLowerCase() !== 'paid' ? '' : 'hidden'}`}
                                   title="Void & Delete Ticket"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1018,6 +1129,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                   <label className="block text-xs font-bold text-slate-500 mb-1.5">Customer Commission %</label>
                   <input
                     type="number"
+                    step="any"
                     min="0"
                     max="100"
                     value={customerCommissionPercent}
@@ -1160,6 +1272,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                   <label className="block text-xs font-bold text-slate-500 mb-1.5">Vendor Commission %</label>
                   <input
                     type="number"
+                    step="any"
                     min="0"
                     max="100"
                     value={vendorCommissionPercent}
@@ -1250,7 +1363,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                       const commission = tripType === 'Refund' ? 0 : Math.round(fare * (Number(vendorCommissionPercent) / 100) * 100) / 100;
                       const custComm = tripType === 'Refund' ? 0 : (passenger.custComm !== undefined ? passenger.custComm : 0);
                       const discount = tripType === 'Refund' ? 0 : Math.round(fare * (Number(customerCommissionPercent) / 100) * 100) / 100;
-                      const total = tripType === 'Refund' ? refund : Math.round((net - discount) * 100) / 100;
+                      const total = tripType === 'Refund' ? refund : Math.round((net - discount + custComm) * 100) / 100;
 
                       return (
                         <tr key={index} className="border-b border-slate-100 hover:bg-slate-50/50">
@@ -1293,6 +1406,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                           <td className="py-3 px-2 text-right">
                             <input
                               type="number"
+                              step="any"
                               disabled={isFormLockedForRole || tripType === 'Refund'}
                               min="0"
                               value={tripType === 'Refund' ? 0 : (passenger.net ?? (Number(passenger.fare) + (Number(passenger.tax) || 0)))}
@@ -1307,6 +1421,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                           <td className="py-3 px-2 text-right">
                             <input
                               type="number"
+                              step="any"
                               disabled={isFormLockedForRole || tripType === 'Refund'}
                               min="0"
                               value={tripType === 'Refund' ? 0 : (passenger.fare ?? 0)}
@@ -1329,6 +1444,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                           <td className="py-3 px-2 text-right">
                             <input
                               type="number"
+                              step="any"
                               disabled={isFormLockedForRole || tripType !== 'Refund'}
                               min="0"
                               value={passenger.refund ?? 0}
@@ -1351,6 +1467,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                           <td className="py-3 px-2 text-right">
                             <input
                               type="number"
+                              step="any"
                               disabled={isFormLockedForRole || tripType === 'Refund'}
                               min="0"
                               value={tripType === 'Refund' ? 0 : custComm}
@@ -1358,7 +1475,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                               className={`w-full border px-2 py-1.5 rounded text-xs font-mono text-right font-bold ${
                                 tripType === 'Refund'
                                   ? 'bg-slate-50 border-slate-200 text-slate-450'
-                                  : 'bg-white border-slate-200 text-slate-850 focus:outline-none font-bold'
+                                  : 'bg-white border-slate-200 text-slate-855 focus:outline-none font-bold'
                               }`}
                             />
                           </td>
@@ -1408,6 +1525,7 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Settled Paid Amount ($)</label>
                     <input
                       type="number"
+                      step="any"
                       disabled={isFormLockedForRole || userRole === 'user'}
                       value={paidAmount}
                       onChange={(e) => setPaidAmount(e.target.value)}
@@ -1523,164 +1641,327 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
               >
-                Back to Registry
+                <ArrowLeft className="w-4 h-4" /> Back to Registry
               </button>
             </div>
           </div>
 
-          {/* Ticket Information Card */}
-          {/* Ticket Information Card */}
-          <div id="boarding-pass-display" className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-6 text-xs text-slate-700 print:border-0 print:shadow-none print:p-0 print:bg-white print:text-black">
+          {/* Ticket Information Card - Double Paper A4 Split Height */}
+          <div id="boarding-pass-display" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 text-xs text-slate-700 print:border-0 print:shadow-none print:p-0 print:bg-white print:text-black">
             
-            {/* 1. Brand Logo Header */}
-            <div className="flex flex-col space-y-4">
-              <div className="flex justify-center border-b border-slate-150 pb-4 print:border-slate-300">
+            {/* Copy 1 (Top Half) */}
+            <div className="space-y-3 text-[11px] text-slate-700 print:text-black">
+              {/* 1. Brand Logo Header */}
+              <div className="flex justify-center border-b border-slate-150 pb-2.5 print:border-slate-300">
                 <img 
                   src={logoImg} 
                   alt="Noble & Ethiopian Airlines Logo" 
                   style={{
-                    width: '95%',
-                    maxWidth: '95%',
+                    width: '100%',
+                    maxWidth: '100%',
                     height: 'auto',
-                    display: 'block'
+                    maxHeight: '155px',
+                    objectFit: 'contain',
+                    display: 'block',
+                    margin: '0 auto'
                   }}
                 />
               </div>
-            </div>
 
-            {/* 2. Header Grid Section */}
-            <div className="grid grid-cols-3 gap-6 items-start border-b border-slate-150 pb-6 print:border-slate-300">
-              
-              {/* Left Column: Customer details */}
-              <div className="space-y-2 text-xs text-slate-700 print:text-black">
-                <div>
-                  <span className="font-bold text-slate-500">Customer: </span>
-                  <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.customerName || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500">Airline: </span>
-                  <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.airline || '-'} Portal</span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500">PNR: </span>
-                  <span className="font-mono font-bold text-blue-600 print:text-blue-700">{selectedInvoice.pnr || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500">Destination: </span>
-                  <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.origin || '-'} to {selectedInvoice.destination || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500">By : </span>
-                  <span className="font-bold text-slate-900 print:text-black">{salesUser}</span>
-                </div>
-              </div>
-
-              {/* Center: QR Code centered */}
-              <div className="flex justify-center items-center h-full">
-                <div className="border border-slate-100 p-2 rounded-xl bg-white shadow-sm print:shadow-none print:border-slate-200">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=Invoice:${selectedInvoice.customInvoiceId || selectedInvoice.id}`} 
-                    alt="Invoice QR Code" 
-                    className="w-24 h-24 object-contain" 
-                  />
-                </div>
-              </div>
-
-              {/* Right Column: Invoice metadata */}
-              <div className="text-right space-y-2 text-xs text-slate-700 print:text-black">
-                <div>
-                  <span className="font-bold text-slate-500">Invoice Number: </span>
-                  <span className="font-bold text-slate-900 print:text-black font-mono">{selectedInvoice.customInvoiceId || `#${selectedInvoice.id}`}</span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500">Issue Date: </span>
-                  <span className="font-bold text-slate-900 print:text-black font-mono">
-                    {((selectedInvoice as any).salesDate || (selectedInvoice.createdAt ? selectedInvoice.createdAt.split('T')[0] : 'N/A')).split('-').reverse().join('-')}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500">Invoice Status: </span>
-                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase mt-1 print:border print:bg-white ${
-                    selectedInvoice.status === 'Paid'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 print:text-emerald-800'
-                      : selectedInvoice.status === 'Partial'
-                      ? 'bg-amber-50 text-amber-700 border-amber-200 print:text-amber-800'
-                      : 'bg-rose-50 text-rose-700 border-rose-200 print:text-rose-800'
-                  }`}>
-                    {selectedInvoice.status}
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            {/* 3. Ticket / Passenger Table */}
-            <div className="space-y-2">
-              <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm print:shadow-none print:border-slate-300">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[9px] print:bg-slate-100">
-                      <th className="py-3 px-4 w-12 text-center">#</th>
-                      <th className="py-3 px-4">Type</th>
-                      <th className="py-3 px-4">Ticket Number</th>
-                      <th className="py-3 px-4">Passenger Name</th>
-                      <th className="py-3 px-4 text-right">Total Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedInvoice.passengers.map((p, idx) => {
-                      const isRefund = selectedInvoice.tripType === 'Refund';
-                      const numP = selectedInvoice.passengers.length || 1;
-                      const defaultFare = (selectedInvoice.baseFare || 0) / numP;
-                      const defaultTax = (selectedInvoice.tax || 0) / numP;
-                      const pFare = p.fare !== undefined && p.fare !== 0 ? (Number(p.fare) || 0) : defaultFare;
-                      const pTax = p.tax !== undefined && p.tax !== 0 ? (Number(p.tax) || 0) : defaultTax;
-                      const pNet = p.net !== undefined && p.net !== 0 ? (Number(p.net) || 0) : (pFare + pTax);
-                      const passengerTotal = isRefund ? (p.refund ?? 0) : pNet;
-                      return (
-                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/50 print:border-slate-200">
-                          <td className="py-3 px-4 text-center font-mono text-slate-500">{idx + 1}</td>
-                          <td className="py-3 px-4 font-semibold text-slate-700">{p.type}</td>
-                          <td className="py-3 px-4 font-mono font-bold text-slate-900">{p.ticketNumber || selectedInvoice.ticketNumber || '-'}</td>
-                          <td className="py-3 px-4 font-bold text-slate-900 uppercase">{p.name}</td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                            $ {passengerTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 4. Bottom Summary Block and Footer Branding */}
-            <div className="flex flex-col space-y-6 pt-4">
-              
-              {/* Summary Footer Block */}
-              <div className="flex justify-end">
-                <div className="w-full max-w-[280px] bg-slate-50/50 border border-slate-150 p-4 rounded-xl space-y-2 text-right shadow-sm print:bg-white print:border-slate-250 print:shadow-none">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-500">Discount:</span>
-                    <span className="font-mono font-bold text-rose-600">$ {selectedInvoice.discount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              {/* 2. Header Grid Section */}
+              <div className="grid grid-cols-3 gap-3 items-start border-b border-slate-150 pb-3 print:border-slate-300">
+                {/* Left Column: Customer details */}
+                <div className="space-y-1 text-xs text-slate-700 print:text-black leading-snug">
+                  <div>
+                    <span className="font-bold text-slate-500">Customer: </span>
+                    <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.customerName || '-'}</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm border-t border-slate-200/60 pt-2 print:border-slate-300">
-                    <span className="font-bold text-slate-900">Total:</span>
-                    <span className="font-mono font-black text-slate-900">$ {selectedInvoice.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <div>
+                    <span className="font-bold text-slate-500">Airline: </span>
+                    <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.airline || '-'} Portal</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">PNR: </span>
+                    <span className="font-mono font-bold text-blue-600 print:text-blue-700">{selectedInvoice.pnr || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Destination: </span>
+                    <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.origin || '-'} to {selectedInvoice.destination || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">By : </span>
+                    <span className="font-bold text-slate-900 print:text-black">{salesUser}</span>
                   </div>
                 </div>
+
+                {/* Center: QR Code */}
+                <div className="flex justify-center items-center h-full">
+                  <div className="border border-slate-100 p-1.5 rounded-xl bg-white shadow-sm print:shadow-none print:border-slate-200">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=Invoice:${selectedInvoice.customInvoiceId || selectedInvoice.id}`} 
+                      alt="Invoice QR Code" 
+                      className="w-20 h-20 object-contain" 
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column: Invoice metadata */}
+                <div className="text-right space-y-1 text-xs text-slate-700 print:text-black leading-snug">
+                  <div>
+                    <span className="font-bold text-slate-500">Invoice Number: </span>
+                    <span className="font-bold text-slate-900 print:text-black font-mono">{selectedInvoice.customInvoiceId || `#${selectedInvoice.id}`}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Issue Date: </span>
+                    <span className="font-bold text-slate-900 print:text-black font-mono">
+                      {((selectedInvoice as any).salesDate || (selectedInvoice.createdAt ? selectedInvoice.createdAt.split('T')[0] : 'N/A')).split('-').reverse().join('-')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Invoice Status: </span>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase mt-0.5 print:border print:bg-white ${
+                      selectedInvoice.status === 'Paid'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 print:text-emerald-800'
+                        : selectedInvoice.status === 'Partial'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200 print:text-amber-800'
+                        : 'bg-rose-50 text-rose-700 border-rose-200 print:text-rose-800'
+                    }`}>
+                      {selectedInvoice.status}
+                    </span>
+                  </div>
+                  {selectedInvoice.paymentMethod && (
+                    <div className="mt-0.5">
+                      <span className="font-bold text-slate-500">Account Type: </span>
+                      <span className="font-bold text-slate-900 print:text-black uppercase font-mono text-xs">
+                        {selectedInvoice.paymentMethod}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Footer Branding */}
-              <div className="flex justify-between items-center text-[9px] text-slate-450 font-sans pt-4 border-t border-slate-150 print:border-slate-200 gap-6">
-                <span className="max-w-[75%] text-left block leading-relaxed">
-                  Located in Hargeisa, Somaliland, you can find the Deero Mall on Presidential Road in the 26June neighborhood. Contact information is provided as: Line +252 2 528445, Telephone # +252 63 4855950-51-52-53
-                </span>
-                <span className="font-bold text-slate-500 text-right whitespace-nowrap">Developed By ENG ABDULKANI MOHAMED</span>
+              {/* 3. Ticket / Passenger Table */}
+              <div className="space-y-1">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm print:shadow-none print:border-slate-300">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[9px] print:bg-slate-100">
+                        <th className="py-2 px-3 w-10 text-center">#</th>
+                        <th className="py-2 px-3">Type</th>
+                        <th className="py-2 px-3">Ticket Number</th>
+                        <th className="py-2 px-3">Passenger Name</th>
+                        <th className="py-2 px-3 text-right">Total Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedInvoice.passengers.map((p, idx) => {
+                        const isRefund = selectedInvoice.tripType === 'Refund';
+                        const numP = selectedInvoice.passengers.length || 1;
+                        const defaultFare = (selectedInvoice.baseFare || 0) / numP;
+                        const defaultTax = (selectedInvoice.tax || 0) / numP;
+                        const pFare = p.fare !== undefined && p.fare !== 0 ? (Number(p.fare) || 0) : defaultFare;
+                        const pTax = p.tax !== undefined && p.tax !== 0 ? (Number(p.tax) || 0) : defaultTax;
+                        const pNet = p.net !== undefined && p.net !== 0 ? (Number(p.net) || 0) : (pFare + pTax);
+                        const passengerTotal = isRefund ? (p.refund ?? 0) : pNet;
+                        return (
+                          <tr key={idx} className="border-b border-slate-100 print:border-slate-200">
+                            <td className="py-2 px-3 text-center font-mono text-slate-500">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-slate-700">{p.type}</td>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-900">{p.ticketNumber || selectedInvoice.ticketNumber || '-'}</td>
+                            <td className="py-2 px-3 font-bold text-slate-900 uppercase">{p.name}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                              $ {passengerTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
+              {/* 4. Bottom Summary Block and Footer Branding */}
+              <div className="flex flex-col space-y-3 pt-1">
+                <div className="flex justify-end">
+                  <div className="w-full max-w-[260px] bg-slate-50/50 border border-slate-150 p-3 rounded-xl space-y-1 text-right shadow-sm print:bg-white print:border-slate-250 print:shadow-none">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-500">Discount:</span>
+                      <span className="font-mono font-bold text-rose-600">$ {selectedInvoice.discount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs border-t border-slate-200/60 pt-1.5 print:border-slate-300">
+                      <span className="font-bold text-slate-900">Total:</span>
+                      <span className="font-mono font-black text-slate-900 text-sm">$ {selectedInvoice.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[9px] text-slate-450 font-sans pt-2 border-t border-slate-150 print:border-slate-200 gap-4">
+                  <span className="max-w-[75%] text-left block leading-relaxed">
+                    Located in Hargeisa, Somaliland, you can find the Deero Mall on Presidential Road in the 26June neighborhood. Contact information is provided as: Line +252 2 528445, Telephone # +252 63 4855950-51-52-53
+                  </span>
+                  <span className="font-bold text-slate-500 text-right whitespace-nowrap">Developed By ENG ABDULKANI MOHAMED</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Dashed Cut Line Divider Between Copies */}
+            <div className="border-b border-dashed border-slate-300 my-4 print:my-3"></div>
+
+            {/* Copy 2 (Bottom Half) */}
+            <div className="space-y-3 text-[11px] text-slate-700 print:text-black">
+              {/* 1. Brand Logo Header */}
+              <div className="flex justify-center border-b border-slate-150 pb-2.5 print:border-slate-300">
+                <img 
+                  src={logoImg} 
+                  alt="Noble & Ethiopian Airlines Logo" 
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    height: 'auto',
+                    maxHeight: '155px',
+                    objectFit: 'contain',
+                    display: 'block',
+                    margin: '0 auto'
+                  }}
+                />
+              </div>
+
+              {/* 2. Header Grid Section */}
+              <div className="grid grid-cols-3 gap-3 items-start border-b border-slate-150 pb-3 print:border-slate-300">
+                {/* Left Column: Customer details */}
+                <div className="space-y-1 text-xs text-slate-700 print:text-black leading-snug">
+                  <div>
+                    <span className="font-bold text-slate-500">Customer: </span>
+                    <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.customerName || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Airline: </span>
+                    <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.airline || '-'} Portal</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">PNR: </span>
+                    <span className="font-mono font-bold text-blue-600 print:text-blue-700">{selectedInvoice.pnr || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Destination: </span>
+                    <span className="font-bold text-slate-900 print:text-black">{selectedInvoice.origin || '-'} to {selectedInvoice.destination || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">By : </span>
+                    <span className="font-bold text-slate-900 print:text-black">{salesUser}</span>
+                  </div>
+                </div>
+
+                {/* Center: QR Code */}
+                <div className="flex justify-center items-center h-full">
+                  <div className="border border-slate-100 p-1.5 rounded-xl bg-white shadow-sm print:shadow-none print:border-slate-200">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=Invoice:${selectedInvoice.customInvoiceId || selectedInvoice.id}`} 
+                      alt="Invoice QR Code" 
+                      className="w-20 h-20 object-contain" 
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column: Invoice metadata */}
+                <div className="text-right space-y-1 text-xs text-slate-700 print:text-black leading-snug">
+                  <div>
+                    <span className="font-bold text-slate-500">Invoice Number: </span>
+                    <span className="font-bold text-slate-900 print:text-black font-mono">{selectedInvoice.customInvoiceId || `#${selectedInvoice.id}`}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Issue Date: </span>
+                    <span className="font-bold text-slate-900 print:text-black font-mono">
+                      {((selectedInvoice as any).salesDate || (selectedInvoice.createdAt ? selectedInvoice.createdAt.split('T')[0] : 'N/A')).split('-').reverse().join('-')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-500">Invoice Status: </span>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase mt-0.5 print:border print:bg-white ${
+                      selectedInvoice.status === 'Paid'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 print:text-emerald-800'
+                        : selectedInvoice.status === 'Partial'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200 print:text-amber-800'
+                        : 'bg-rose-50 text-rose-700 border-rose-200 print:text-rose-800'
+                    }`}>
+                      {selectedInvoice.status}
+                    </span>
+                  </div>
+                  {selectedInvoice.paymentMethod && (
+                    <div className="mt-0.5">
+                      <span className="font-bold text-slate-500">Account Type: </span>
+                      <span className="font-bold text-slate-900 print:text-black uppercase font-mono text-xs">
+                        {selectedInvoice.paymentMethod}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Ticket / Passenger Table */}
+              <div className="space-y-1">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm print:shadow-none print:border-slate-300">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[9px] print:bg-slate-100">
+                        <th className="py-2 px-3 w-10 text-center">#</th>
+                        <th className="py-2 px-3">Type</th>
+                        <th className="py-2 px-3">Ticket Number</th>
+                        <th className="py-2 px-3">Passenger Name</th>
+                        <th className="py-2 px-3 text-right">Total Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedInvoice.passengers.map((p, idx) => {
+                        const isRefund = selectedInvoice.tripType === 'Refund';
+                        const numP = selectedInvoice.passengers.length || 1;
+                        const defaultFare = (selectedInvoice.baseFare || 0) / numP;
+                        const defaultTax = (selectedInvoice.tax || 0) / numP;
+                        const pFare = p.fare !== undefined && p.fare !== 0 ? (Number(p.fare) || 0) : defaultFare;
+                        const pTax = p.tax !== undefined && p.tax !== 0 ? (Number(p.tax) || 0) : defaultTax;
+                        const pNet = p.net !== undefined && p.net !== 0 ? (Number(p.net) || 0) : (pFare + pTax);
+                        const passengerTotal = isRefund ? (p.refund ?? 0) : pNet;
+                        return (
+                          <tr key={idx} className="border-b border-slate-100 print:border-slate-200">
+                            <td className="py-2 px-3 text-center font-mono text-slate-500">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-slate-700">{p.type}</td>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-900">{p.ticketNumber || selectedInvoice.ticketNumber || '-'}</td>
+                            <td className="py-2 px-3 font-bold text-slate-900 uppercase">{p.name}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                              $ {passengerTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 4. Bottom Summary Block and Footer Branding */}
+              <div className="flex flex-col space-y-3 pt-1">
+                <div className="flex justify-end">
+                  <div className="w-full max-w-[260px] bg-slate-50/50 border border-slate-150 p-3 rounded-xl space-y-1 text-right shadow-sm print:bg-white print:border-slate-250 print:shadow-none">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-500">Discount:</span>
+                      <span className="font-mono font-bold text-rose-600">$ {selectedInvoice.discount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs border-t border-slate-200/60 pt-1.5 print:border-slate-300">
+                      <span className="font-bold text-slate-900">Total:</span>
+                      <span className="font-mono font-black text-slate-900 text-sm">$ {selectedInvoice.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[9px] text-slate-450 font-sans pt-2 border-t border-slate-150 print:border-slate-200 gap-4">
+                  <span className="max-w-[75%] text-left block leading-relaxed">
+                    Located in Hargeisa, Somaliland, you can find the Deero Mall on Presidential Road in the 26June neighborhood. Contact information is provided as: Line +252 2 528445, Telephone # +252 63 4855950-51-52-53
+                  </span>
+                  <span className="font-bold text-slate-500 text-right whitespace-nowrap">Developed By ENG ABDULKANI MOHAMED</span>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -1696,6 +1977,141 @@ export default function Tickets({ userRole = 'admin' }: TicketsProps) {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* Add Payment Modal */}
+      {isAddPaymentModalOpen && paymentInvoice && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 max-w-lg w-full relative animate-in fade-in zoom-in duration-200 text-left">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+              <h3 className="font-extrabold text-slate-800 text-sm">Add Payment</h3>
+              <button 
+                onClick={() => setIsAddPaymentModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddPaymentSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                    Date<span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                    Amount<span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    min="0"
+                    placeholder="Enter Amount"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                    Account<span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={paymentAccount}
+                    onChange={(e) => setPaymentAccount(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-850 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Enter Account</option>
+                    <option value="ZAAD">ZAAD</option>
+                    <option value="EDAHAB">EDAHAB</option>
+                    <option value="CASH">CASH</option>
+                    <option value="CARD">CARD</option>
+                    <option value="WALLET">WALLET</option>
+                    <option value="DAHASHIL BANK">DAHASHIL BANK</option>
+                    <option value="DARASALAM BANK">DARASALAM BANK</option>
+                  </select>
+                  <div className="text-[9px] text-slate-400 mt-1 font-medium">
+                    Create account here. <span className="text-blue-500 cursor-pointer font-semibold hover:underline">Create account</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                    Reference
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter Reference"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-850 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                  Status<span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required
+                  value={paymentStatus}
+                  onChange={(e) => setPaymentStatus(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="PAID">PAID</option>
+                  <option value="UNPAID">UNPAID</option>
+                  <option value="PARTIAL PAID">PARTIAL PAID</option>
+                  <option value="REFUND">REFUND</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Enter Description"
+                  rows={3}
+                  value={paymentDescription}
+                  onChange={(e) => setPaymentDescription(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-850 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddPaymentModalOpen(false)}
+                  className="px-5 py-2 bg-slate-500 hover:bg-slate-600 text-white font-bold text-xs rounded-xl shadow-sm cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm cursor-pointer transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

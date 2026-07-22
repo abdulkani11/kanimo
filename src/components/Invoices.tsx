@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { Search, Printer, Download, Mail, MessageSquare, ShieldAlert, CheckCircle2, Ticket, CreditCard, ChevronRight } from 'lucide-react';
 import { TicketInvoice, PaymentRecord } from '../types';
 
-export default function Invoices() {
+interface InvoicesProps {
+  userRole?: 'admin' | 'cashier' | 'user';
+  loggedInEmail?: string;
+}
+
+export default function Invoices({ userRole = 'admin', loggedInEmail = 'admin@noble.com' }: InvoicesProps) {
   const [invoices, setInvoices] = useState<TicketInvoice[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<TicketInvoice | null>(null);
@@ -48,7 +53,16 @@ export default function Invoices() {
     
     const matchesStatus = statusFilter ? inv.status === statusFilter : true;
 
-    return matchesSearch && matchesStatus;
+    // Creator User Filter (Lock to own invoices if active role is user)
+    const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
+      ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
+      : loggedInEmail;
+      
+    const matchesCreator = userRole === 'user'
+      ? (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase()
+      : true;
+
+    return matchesSearch && matchesStatus && matchesCreator;
   });
 
   // Handle Dispatch Alerts (Email, WhatsApp, SMS)

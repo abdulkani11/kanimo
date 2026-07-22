@@ -3,7 +3,12 @@ import { DollarSign, Users, Ticket, ArrowUpRight, ArrowDownRight, Clock, ShieldA
 import { motion } from 'motion/react';
 import { Customer, TicketInvoice, PaymentRecord, RefundRequest, AuditLog } from '../types';
 
-export default function Dashboard() {
+interface DashboardProps {
+  userRole?: 'admin' | 'cashier' | 'user';
+  loggedInEmail?: string;
+}
+
+export default function Dashboard({ userRole = 'admin', loggedInEmail = 'admin@noble.com' }: DashboardProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<TicketInvoice[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -42,18 +47,40 @@ export default function Dashboard() {
     );
   }
 
+  // --- Scoping / Filtering based on Role ---
+  const effectiveEmail = loggedInEmail.toLowerCase() === 'admin@noble.com'
+    ? (userRole === 'cashier' ? 'cashier@noble.com' : 'agent@noble.com')
+    : loggedInEmail;
+
+  const scopedInvoices = userRole === 'user'
+    ? invoices.filter(inv => (inv.createdBy || 'admin@noble.com').toLowerCase() === effectiveEmail.toLowerCase())
+    : invoices;
+
+  const userInvoiceIds = new Set(scopedInvoices.map(i => i.id));
+  const scopedPayments = userRole === 'user'
+    ? payments.filter(p => userInvoiceIds.has(p.invoiceId))
+    : payments;
+
+  const scopedRefunds = userRole === 'user'
+    ? refunds.filter(r => userInvoiceIds.has(r.invoiceId) || (r.createdBy || '').toLowerCase() === effectiveEmail.toLowerCase())
+    : refunds;
+
+  const scopedLogs = userRole === 'user'
+    ? logs.filter(l => l.username.toLowerCase() === effectiveEmail.toLowerCase() || l.username.toLowerCase().includes('abdi kanim'))
+    : logs;
+
   // --- Calculations ---
   const today = new Date().toISOString().split('T')[0];
   
   // Sales calculations
-  const todayInvoices = invoices.filter(i => i.createdAt.startsWith(today));
-  const todaySales = invoices
+  const todayInvoices = scopedInvoices.filter(i => i.createdAt.startsWith(today));
+  const todaySales = scopedInvoices
     .filter(i => i.createdAt.startsWith('2026-07-19') || i.createdAt.startsWith(today))
     .reduce((sum, i) => sum + i.netAmount, 0);
 
-  const totalSales = invoices.reduce((sum, i) => sum + i.netAmount, 0);
-  const totalPaid = invoices.reduce((sum, i) => sum + i.paidAmount, 0);
-  const outstandingDue = invoices.reduce((sum, i) => sum + i.dueAmount, 0);
+  const totalSales = scopedInvoices.reduce((sum, i) => sum + i.netAmount, 0);
+  const totalPaid = scopedInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
+  const outstandingDue = scopedInvoices.reduce((sum, i) => sum + i.dueAmount, 0);
 
   // Dynamic monthly totals for Jan 26 to Jul 26
   const monthlyMonths = [
@@ -67,7 +94,7 @@ export default function Dashboard() {
   ];
 
   const monthlyTotals = monthlyMonths.map(m => {
-    const monthInvoices = invoices.filter(i => i.createdAt.startsWith(m.match));
+    const monthInvoices = scopedInvoices.filter(i => i.createdAt.startsWith(m.match));
     const sales = monthInvoices.reduce((sum, i) => sum + i.netAmount, 0);
     const paid = monthInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
     return { sales, paid };
@@ -87,11 +114,11 @@ export default function Dashboard() {
   const paidAreaPath = `${paidPath} L ${xCoords[xCoords.length - 1]},185 L ${xCoords[0]},185 Z`;
 
   // Refund requests statistics
-  const pendingRefundsSum = refunds
+  const pendingRefundsSum = scopedRefunds
     .filter(r => r.status === 'Pending')
     .reduce((sum, r) => sum + r.refundAmount, 0);
 
-  const approvedRefundsSum = refunds
+  const approvedRefundsSum = scopedRefunds
     .filter(r => r.status === 'Refunded')
     .reduce((sum, r) => sum + r.refundAmount, 0);
 
@@ -101,7 +128,7 @@ export default function Dashboard() {
   const activeIndCount = customers.filter(c => c.type === 'Individual').length;
 
   // Outstanding due card trend
-  const unpaidInvoicesCount = invoices.filter(i => i.status === 'Unpaid' || i.status === 'Partial').length;
+  const unpaidInvoicesCount = scopedInvoices.filter(i => i.status === 'Unpaid' || i.status === 'Partial').length;
 
   // Top Customers by outstanding balances or volume
   const topCustomers = [...customers].sort((a, b) => b.balance - a.balance).slice(0, 4);
@@ -340,7 +367,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="font-medium text-slate-700 divide-y divide-slate-50">
-                {invoices.slice(0, 3).map(inv => (
+                {scopedInvoices.slice(0, 3).map(inv => (
                   <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3 font-mono font-bold text-blue-600">{inv.id}</td>
                     <td className="py-3 font-semibold">{inv.customerName}</td>
@@ -371,7 +398,7 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-4">
-            {logs.slice(0, 4).map((log, index) => (
+            {scopedLogs.slice(0, 4).map((log, index) => (
               <div key={log.id || index} className="flex gap-3 text-xs leading-relaxed">
                 <div className="flex flex-col items-center">
                   <div className="w-2 h-2 rounded-full bg-slate-900 border-2 border-white ring-4 ring-slate-100 shrink-0"></div>

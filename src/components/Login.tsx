@@ -6,7 +6,7 @@ import logoImg from '../assets/images/dual_airline_logo.png';
 import loginBg from '../assets/images/login_bg.png';
 
 interface LoginProps {
-  onLoginSuccess: (role: 'admin' | 'cashier' | 'user') => void;
+  onLoginSuccess: (role: 'admin' | 'cashier' | 'user', email: string) => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
@@ -23,15 +23,38 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     'agent@noble.com': { password: 'agent123', role: 'user' as const }
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const matched = credentials[email.toLowerCase() as keyof typeof credentials];
-    if (matched && matched.password === password) {
-      onLoginSuccess(matched.role);
-    } else {
-      setError('Invalid email address or secure password. Please verify credentials.');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          onLoginSuccess(data.user.role, data.user.email);
+          return;
+        }
+      }
+
+      const errData = await res.json().catch(() => ({}));
+      setError(errData.error || 'Invalid email address or secure password. Please verify credentials.');
+    } catch (err) {
+      console.warn('Backend login API unavailable, falling back to local credentials:', err);
+      // Fallback to local credentials for offline resilience
+      const matched = credentials[email.toLowerCase() as keyof typeof credentials];
+      if (matched && matched.password === password) {
+        onLoginSuccess(matched.role, email);
+      } else {
+        setError('Invalid email address or secure password. Please verify credentials.');
+      }
     }
   };
 

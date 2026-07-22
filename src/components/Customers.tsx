@@ -437,6 +437,7 @@ export default function Customers() {
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Commission %</label>
                   <input
                     type="number"
+                    step="any"
                     min="0"
                     max="100"
                     value={commissionPercent}
@@ -474,6 +475,7 @@ export default function Customers() {
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Credit Limit ($)</label>
                   <input
                     type="number"
+                    step="any"
                     value={creditLimit}
                     onChange={(e) => setCreditLimit(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
@@ -483,6 +485,7 @@ export default function Customers() {
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Opening Balance ($)</label>
                   <input
                     type="number"
+                    step="any"
                     value={balance}
                     onChange={(e) => setBalance(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 font-mono"

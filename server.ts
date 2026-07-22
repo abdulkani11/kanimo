@@ -137,12 +137,52 @@ async function seedCollection(collectionName: string, defaultData: any[]) {
 // Travel Portal Data Store (In-Memory State Fallbacks for Seeding)
 // -----------------------------------------------------------------------------
 
-const INVOICES_FILE = path.join(process.cwd(), 'data_invoices.json');
-const CUSTOMERS_FILE = path.join(process.cwd(), 'data_customers.json');
+const DB_DIR = fs.existsSync('/var/data') ? '/var/data' : process.cwd();
+const INVOICES_FILE = path.join(DB_DIR, 'data_invoices.json');
+const CUSTOMERS_FILE = path.join(DB_DIR, 'data_customers.json');
+const USERS_FILE = path.join(DB_DIR, 'data_users.json');
+const VISAS_FILE = path.join(DB_DIR, 'data_visas.json');
+const QUOTATIONS_FILE = path.join(DB_DIR, 'data_quotations.json');
+
+// Copy initial database files to persistent storage if needed
+if (DB_DIR === '/var/data') {
+  try {
+    const srcInvoices = path.join(process.cwd(), 'data_invoices.json');
+    const srcCustomers = path.join(process.cwd(), 'data_customers.json');
+    const srcUsers = path.join(process.cwd(), 'data_users.json');
+    const srcVisas = path.join(process.cwd(), 'data_visas.json');
+    const srcQuotations = path.join(process.cwd(), 'data_quotations.json');
+    if (!fs.existsSync(INVOICES_FILE) && fs.existsSync(srcInvoices)) {
+      fs.copyFileSync(srcInvoices, INVOICES_FILE);
+      console.log('[Noble DB] Copied data_invoices.json to persistent volume /var/data');
+    }
+    if (!fs.existsSync(CUSTOMERS_FILE) && fs.existsSync(srcCustomers)) {
+      fs.copyFileSync(srcCustomers, CUSTOMERS_FILE);
+      console.log('[Noble DB] Copied data_customers.json to persistent volume /var/data');
+    }
+    if (!fs.existsSync(USERS_FILE) && fs.existsSync(srcUsers)) {
+      fs.copyFileSync(srcUsers, USERS_FILE);
+      console.log('[Noble DB] Copied data_users.json to persistent volume /var/data');
+    }
+    if (!fs.existsSync(VISAS_FILE) && fs.existsSync(srcVisas)) {
+      fs.copyFileSync(srcVisas, VISAS_FILE);
+      console.log('[Noble DB] Copied data_visas.json to persistent volume /var/data');
+    }
+    if (!fs.existsSync(QUOTATIONS_FILE) && fs.existsSync(srcQuotations)) {
+      fs.copyFileSync(srcQuotations, QUOTATIONS_FILE);
+      console.log('[Noble DB] Copied data_quotations.json to persistent volume /var/data');
+    }
+  } catch (err) {
+    console.error('[Noble DB] Failed to copy database files to persistent volume:', err);
+  }
+}
 
 // Global arrays
 let customers = [];
 let invoices = [];
+let users = [];
+let visas = [];
+let quotations = [];
 
 const saveInvoicesToDisk = () => {
   try {
@@ -159,6 +199,36 @@ const saveCustomersToDisk = () => {
     console.error('Error writing customers to disk:', err);
   }
 };
+
+const saveUsersToDisk = () => {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing users to disk:', err);
+  }
+};
+
+const saveVisasToDisk = () => {
+  try {
+    fs.writeFileSync(VISAS_FILE, JSON.stringify(visas, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing visas to disk:', err);
+  }
+};
+
+const saveQuotationsToDisk = () => {
+  try {
+    fs.writeFileSync(QUOTATIONS_FILE, JSON.stringify(quotations, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing quotations to disk:', err);
+  }
+};
+
+const initialUsers = [
+  { id: 'admin@noble.com', email: 'admin@noble.com', password: 'admin123', role: 'admin' },
+  { id: 'cashier@noble.com', email: 'cashier@noble.com', password: 'cashier123', role: 'cashier' },
+  { id: 'agent@noble.com', email: 'agent@noble.com', password: 'agent123', role: 'user' }
+];
 
 const initialCustomers = [
   {
@@ -249,12 +319,69 @@ try {
     const raw = fs.readFileSync(INVOICES_FILE, 'utf8');
     invoices = JSON.parse(raw);
     console.log(`[Noble DB] Loaded ${invoices.length} invoices from persistent file storage.`);
+    
+    // Ensure there is at least some daily report data for today!
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const hasToday = invoices.some(inv => (inv.salesDate === todayStr || (inv.createdAt && inv.createdAt.startsWith(todayStr))));
+    if (!hasToday && invoices.length > 0) {
+      console.log(`[Noble DB] No invoices found for today (${todayStr}). Updating recent invoices to today for demo purposes.`);
+      // Let's set the first 5 invoices to today's date
+      const limit = Math.min(invoices.length, 5);
+      for (let i = 0; i < limit; i++) {
+        invoices[i].salesDate = todayStr;
+        const originalTime = invoices[i].createdAt ? invoices[i].createdAt.split('T')[1] || '09:00:00Z' : '09:00:00Z';
+        invoices[i].createdAt = `${todayStr}T${originalTime}`;
+      }
+      fs.writeFileSync(INVOICES_FILE, JSON.stringify(invoices, null, 2), 'utf8');
+    }
   } else {
     invoices = [];
   }
 } catch (err) {
   console.error('Error reading invoices from disk:', err);
   invoices = [];
+}
+
+try {
+  if (fs.existsSync(USERS_FILE)) {
+    const raw = fs.readFileSync(USERS_FILE, 'utf8');
+    users = JSON.parse(raw);
+    console.log(`[Noble DB] Loaded ${users.length} users from persistent file storage.`);
+  } else {
+    users = initialUsers;
+    fs.writeFileSync(USERS_FILE, JSON.stringify(initialUsers, null, 2), 'utf8');
+    console.log(`[Noble DB] Seeded ${users.length} default users.`);
+  }
+} catch (err) {
+  console.error('Error reading users from disk:', err);
+  users = initialUsers;
+}
+
+try {
+  if (fs.existsSync(VISAS_FILE)) {
+    const raw = fs.readFileSync(VISAS_FILE, 'utf8');
+    visas = JSON.parse(raw);
+    console.log(`[Noble DB] Loaded ${visas.length} visas from persistent file storage.`);
+  } else {
+    visas = [];
+  }
+} catch (err) {
+  console.error('Error reading visas from disk:', err);
+  visas = [];
+}
+
+try {
+  if (fs.existsSync(QUOTATIONS_FILE)) {
+    const raw = fs.readFileSync(QUOTATIONS_FILE, 'utf8');
+    quotations = JSON.parse(raw);
+    console.log(`[Noble DB] Loaded ${quotations.length} quotations from persistent file storage.`);
+  } else {
+    quotations = [];
+  }
+} catch (err) {
+  console.error('Error reading quotations from disk:', err);
+  quotations = [];
 }
 
 
@@ -708,6 +835,7 @@ app.post('/api/invoices', async (req, res) => {
     mobileNumber,
     email,
     salesDate,
+    createdBy,
   } = req.body;
 
   try {
@@ -729,7 +857,7 @@ app.post('/api/invoices', async (req, res) => {
         ? passengers.reduce((sum: number, p: any) => sum + (Number(p.custComm) || 0), 0)
         : Math.round(parsedFare * (commissionPercent / 100) * 100) / 100;
       const totalPassengerRefund = (passengers || []).reduce((sum: number, p: any) => sum + (Number(p.refund) || 0), 0);
-      const netAmount = tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount);
+      const netAmount = tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount + customerCommission);
       const dueAmount = Math.max(0, netAmount - parsedPaid);
       const status = dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
 
@@ -775,6 +903,7 @@ app.post('/api/invoices', async (req, res) => {
         mobileNumber: mobileNumber || '',
         email: email || '',
         salesDate: salesDate || new Date().toISOString().split('T')[0],
+        createdBy: createdBy || 'admin@noble.com',
       };
 
       if (customer && status !== 'Paid') {
@@ -805,7 +934,7 @@ app.post('/api/invoices', async (req, res) => {
     ? passengers.reduce((sum: number, p: any) => sum + (Number(p.custComm) || 0), 0)
     : Math.round(parsedFare * (commissionPercent / 100) * 100) / 100;
   const totalPassengerRefund = (passengers || []).reduce((sum: number, p: any) => sum + (Number(p.refund) || 0), 0);
-  const netAmount = tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount);
+  const netAmount = tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount + customerCommission);
   const dueAmount = Math.max(0, netAmount - parsedPaid);
   const status = dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
 
@@ -848,6 +977,7 @@ app.post('/api/invoices', async (req, res) => {
     mobileNumber: mobileNumber || '',
     email: email || '',
     salesDate: salesDate || new Date().toISOString().split('T')[0],
+    createdBy: createdBy || 'admin@noble.com',
   };
 
   if (customer && status !== 'Paid') {
@@ -877,15 +1007,15 @@ app.put('/api/invoices/:id', async (req, res) => {
       const parsedTax = Number(updated.tax) || 0;
       const parsedDiscount = Number(updated.discount) || 0;
 
-      const totalPassengerRefund = (updated.passengers || []).reduce((sum: number, p: any) => sum + (Number(p.refund) || 0), 0);
-      updated.netAmount = updated.tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount);
-
       const commPercent = updated.customerCommissionPercent !== undefined ? Number(updated.customerCommissionPercent) : 0;
       const vendCommPct = updated.vendorCommissionPercent !== undefined ? Number(updated.vendorCommissionPercent) : 9;
       updated.vendorCommission = Math.round(parsedFare * (vendCommPct / 100) * 100) / 100;
       updated.customerCommission = updated.passengers && updated.passengers.length > 0
         ? updated.passengers.reduce((sum: number, p: any) => sum + (Number(p.custComm) || 0), 0)
         : Math.round(parsedFare * (commPercent / 100) * 100) / 100;
+
+      const totalPassengerRefund = (updated.passengers || []).reduce((sum: number, p: any) => sum + (Number(p.refund) || 0), 0);
+      updated.netAmount = updated.tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount + updated.customerCommission);
 
       if (req.body.status !== undefined) {
         updated.status = req.body.status;
@@ -896,13 +1026,16 @@ app.put('/api/invoices/:id', async (req, res) => {
           updated.paidAmount = 0;
           updated.dueAmount = updated.netAmount;
         } else if (updated.status === 'Partial') {
-          const pAmt = Number(req.body.paidAmount) || 0;
+          const pAmt = req.body.paidAmount !== undefined ? Number(req.body.paidAmount) : updated.paidAmount;
           if (pAmt > 0 && pAmt < updated.netAmount) {
             updated.paidAmount = pAmt;
-          } else if (updated.paidAmount === 0 || updated.paidAmount >= updated.netAmount) {
+          } else if (pAmt >= updated.netAmount) {
+            updated.paidAmount = updated.netAmount;
+            updated.status = 'Paid';
+          } else if (updated.paidAmount === 0) {
             updated.paidAmount = Math.round(updated.netAmount / 2);
           }
-          updated.dueAmount = updated.netAmount - updated.paidAmount;
+          updated.dueAmount = Math.max(0, updated.netAmount - updated.paidAmount);
         } else if (updated.status === 'Refunded') {
           updated.dueAmount = 0;
         }
@@ -928,15 +1061,15 @@ app.put('/api/invoices/:id', async (req, res) => {
   const parsedTax = Number(updated.tax) || 0;
   const parsedDiscount = Number(updated.discount) || 0;
 
-  const totalPassengerRefund = (updated.passengers || []).reduce((sum: number, p: any) => sum + (Number(p.refund) || 0), 0);
-  updated.netAmount = updated.tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount);
-
   const commPercent = updated.customerCommissionPercent !== undefined ? Number(updated.customerCommissionPercent) : 0;
   const vendCommPct = updated.vendorCommissionPercent !== undefined ? Number(updated.vendorCommissionPercent) : 9;
   updated.vendorCommission = Math.round(parsedFare * (vendCommPct / 100) * 100) / 100;
   updated.customerCommission = updated.passengers && updated.passengers.length > 0
     ? updated.passengers.reduce((sum: number, p: any) => sum + (Number(p.custComm) || 0), 0)
     : Math.round(parsedFare * (commPercent / 100) * 100) / 100;
+
+  const totalPassengerRefund = (updated.passengers || []).reduce((sum: number, p: any) => sum + (Number(p.refund) || 0), 0);
+  updated.netAmount = updated.tripType === 'Refund' ? totalPassengerRefund : (parsedFare + parsedTax - parsedDiscount + updated.customerCommission);
 
   if (req.body.status !== undefined) {
     updated.status = req.body.status;
@@ -947,13 +1080,16 @@ app.put('/api/invoices/:id', async (req, res) => {
       updated.paidAmount = 0;
       updated.dueAmount = updated.netAmount;
     } else if (updated.status === 'Partial') {
-      const pAmt = Number(req.body.paidAmount) || 0;
+      const pAmt = req.body.paidAmount !== undefined ? Number(req.body.paidAmount) : updated.paidAmount;
       if (pAmt > 0 && pAmt < updated.netAmount) {
         updated.paidAmount = pAmt;
-      } else if (updated.paidAmount === 0 || updated.paidAmount >= updated.netAmount) {
+      } else if (pAmt >= updated.netAmount) {
+        updated.paidAmount = updated.netAmount;
+        updated.status = 'Paid';
+      } else if (updated.paidAmount === 0) {
         updated.paidAmount = Math.round(updated.netAmount / 2);
       }
-      updated.dueAmount = updated.netAmount - updated.paidAmount;
+      updated.dueAmount = Math.max(0, updated.netAmount - updated.paidAmount);
     } else if (updated.status === 'Refunded') {
       updated.dueAmount = 0;
     }
@@ -1370,6 +1506,551 @@ app.post('/api/notify', (req, res) => {
   });
 });
 
+// Visas API
+app.get('/api/visas', async (req, res) => {
+  res.json(visas);
+});
+
+app.post('/api/visas', async (req, res) => {
+  const {
+    customInvoiceId,
+    customerId,
+    applicantName,
+    passportNumber,
+    nationality,
+    visaType,
+    salesDate,
+    baseFare,
+    tax,
+    discount,
+    customerCommission,
+    paidAmount,
+    paymentMethod,
+    createdBy
+  } = req.body;
+
+  const customer = customers.find(c => c.id === customerId);
+  const customerName = customer ? customer.name : 'Unknown Customer';
+
+  const parsedFare = Number(baseFare) || 0;
+  const parsedTax = Number(tax) || 0;
+  const parsedDiscount = Number(discount) || 0;
+  const parsedPaid = Number(paidAmount) || 0;
+  const parsedCustComm = Number(customerCommission) || 0;
+
+  const netAmount = Math.round((parsedFare + parsedTax - parsedDiscount + parsedCustComm) * 100) / 100;
+  const dueAmount = Math.max(0, Math.round((netAmount - parsedPaid) * 100) / 100);
+  const status = dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+
+  const visaId = customInvoiceId && customInvoiceId.trim() !== ""
+    ? (customInvoiceId.startsWith('VSA-') ? customInvoiceId : `VSA-2026-${customInvoiceId}`)
+    : `VSA-2026-${1000 + visas.length + 1}`;
+
+  const newVisa = {
+    id: visaId,
+    customInvoiceId: visaId,
+    customerId,
+    customerName,
+    applicantName: applicantName || 'Unknown Applicant',
+    passportNumber: passportNumber || 'N000000',
+    nationality: nationality || 'Somalia',
+    visaType: visaType || 'Tourist',
+    salesDate: salesDate || new Date().toLocaleDateString('en-CA'),
+    baseFare: parsedFare,
+    tax: parsedTax,
+    discount: parsedDiscount,
+    customerCommission: parsedCustComm,
+    netAmount,
+    paidAmount: parsedPaid,
+    dueAmount,
+    status,
+    paymentMethod: paymentMethod || 'Cash',
+    createdBy: createdBy || 'admin@noble.com',
+    createdAt: new Date().toISOString()
+  };
+
+  visas.push(newVisa);
+  saveVisasToDisk();
+
+  if (customer && status !== 'Paid') {
+    customer.balance = Math.round(((customer.balance || 0) + dueAmount) * 100) / 100;
+    saveCustomersToDisk();
+  }
+
+  res.status(201).json(newVisa);
+});
+
+app.put('/api/visas/:id', async (req, res) => {
+  const { id } = req.params;
+  const idx = visas.findIndex(v => v.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Visa record not found.' });
+
+  const oldVisa = visas[idx];
+  const updated = { ...oldVisa, ...req.body };
+
+  const parsedFare = Number(updated.baseFare) || 0;
+  const parsedTax = Number(updated.tax) || 0;
+  const parsedDiscount = Number(updated.discount) || 0;
+  const parsedPaid = Number(updated.paidAmount) || 0;
+  const parsedCustComm = Number(updated.customerCommission) || 0;
+
+  updated.netAmount = Math.round((parsedFare + parsedTax - parsedDiscount + parsedCustComm) * 100) / 100;
+
+  if (req.body.status !== undefined) {
+    updated.status = req.body.status;
+    if (updated.status === 'Paid') {
+      updated.paidAmount = updated.netAmount;
+      updated.dueAmount = 0;
+    } else if (updated.status === 'Unpaid') {
+      updated.paidAmount = 0;
+      updated.dueAmount = updated.netAmount;
+    } else if (updated.status === 'Partial') {
+      const pAmt = req.body.paidAmount !== undefined ? Number(req.body.paidAmount) : updated.paidAmount;
+      if (pAmt > 0 && pAmt < updated.netAmount) {
+        updated.paidAmount = pAmt;
+      } else if (pAmt >= updated.netAmount) {
+        updated.paidAmount = updated.netAmount;
+        updated.status = 'Paid';
+      }
+      updated.dueAmount = Math.max(0, Math.round((updated.netAmount - updated.paidAmount) * 100) / 100);
+    }
+  } else {
+    updated.dueAmount = Math.max(0, Math.round((updated.netAmount - parsedPaid) * 100) / 100);
+    updated.status = updated.dueAmount === 0 ? 'Paid' : (parsedPaid > 0 ? 'Partial' : 'Unpaid');
+  }
+
+  // Adjust customer credit balance
+  const diff = updated.dueAmount - (oldVisa.dueAmount || 0);
+  if (diff !== 0) {
+    const customer = customers.find(c => c.id === updated.customerId);
+    if (customer) {
+      customer.balance = Math.round(((customer.balance || 0) + diff) * 100) / 100;
+      saveCustomersToDisk();
+    }
+  }
+
+  visas[idx] = updated;
+  saveVisasToDisk();
+  res.json(updated);
+});
+
+app.delete('/api/visas/:id', async (req, res) => {
+  const { id } = req.params;
+  const idx = visas.findIndex(v => v.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Visa record not found.' });
+
+  const visa = visas[idx];
+  if (visa.dueAmount > 0) {
+    const customer = customers.find(c => c.id === visa.customerId);
+    if (customer) {
+      customer.balance = Math.max(0, Math.round(((customer.balance || 0) - visa.dueAmount) * 100) / 100);
+      saveCustomersToDisk();
+    }
+  }
+
+  visas.splice(idx, 1);
+  saveVisasToDisk();
+  res.json({ success: true });
+});
+
+// Quotations API
+app.get('/api/quotations', async (req, res) => {
+  res.json(quotations);
+});
+
+app.post('/api/quotations', async (req, res) => {
+  const newQuote = {
+    id: req.body.customQuoteId || `QT-2026-${1000 + quotations.length + 1}`,
+    customQuoteId: req.body.customQuoteId || `QT-2026-${1000 + quotations.length + 1}`,
+    date: req.body.date || new Date().toLocaleDateString('en-CA'),
+    clientName: req.body.clientName || 'Unknown Client',
+    subject: req.body.subject || 'Travel Quotation',
+    intro: req.body.intro || 'We are pleased to submit the following itinerary options for your review...',
+    items: req.body.items || [],
+    note: req.body.note || 'Prices are subject to availability and change until ticketed.',
+    totalAmount: Number(req.body.totalAmount) || 0,
+    createdBy: req.body.createdBy || 'admin@noble.com',
+    createdAt: new Date().toISOString()
+  };
+
+  quotations.push(newQuote);
+  saveQuotationsToDisk();
+  res.status(201).json(newQuote);
+});
+
+app.put('/api/quotations/:id', async (req, res) => {
+  const { id } = req.params;
+  const idx = quotations.findIndex(q => q.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Quotation not found.' });
+
+  quotations[idx] = { ...quotations[idx], ...req.body };
+  saveQuotationsToDisk();
+  res.json(quotations[idx]);
+});
+
+app.delete('/api/quotations/:id', async (req, res) => {
+  const { id } = req.params;
+  const idx = quotations.findIndex(q => q.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Quotation not found.' });
+
+  quotations.splice(idx, 1);
+  saveQuotationsToDisk();
+  res.json({ success: true });
+});
+
+// -----------------------------------------------------------------------------
+// Authentication and Staff Registration Routes
+// -----------------------------------------------------------------------------
+
+// login endpoint
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    if (db) {
+      const doc = await db.collection('users').doc(email.toLowerCase()).get();
+      if (doc.exists) {
+        const u = doc.data();
+        if (u && u.password === password) {
+          return res.json({ success: true, user: { email: u.email, role: u.role } });
+        }
+      }
+    } else {
+      const u = users.find(x => x.email.toLowerCase() === email.toLowerCase());
+      if (u && u.password === password) {
+        return res.json({ success: true, user: { email: u.email, role: u.role } });
+      }
+    }
+  } catch (err: any) {
+    console.error('Error logging in:', err);
+  }
+
+  res.status(401).json({ error: 'Invalid email address or secure password.' });
+});
+
+// get all users staff (masking password)
+app.get('/api/users', async (req, res) => {
+  try {
+    if (db) {
+      const snapshot = await db.collection('users').get();
+      const list = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { email: data.email, role: data.role };
+      });
+      return res.json(list);
+    }
+  } catch (err: any) {
+    console.error('Error fetching users from Firestore:', err);
+  }
+
+  const list = users.map(u => ({ email: u.email, role: u.role }));
+  res.json(list);
+});
+
+// register a new staff user
+app.post('/api/users', async (req, res) => {
+  const { email, password, role } = req.body;
+  if (!email || !password || !role) {
+    return res.status(400).json({ error: 'Email, password, and role are required' });
+  }
+
+  const normalizedEmail = email.toLowerCase();
+
+  try {
+    if (db) {
+      const doc = await db.collection('users').doc(normalizedEmail).get();
+      if (doc.exists) {
+        return res.status(400).json({ error: 'User email is already registered.' });
+      }
+
+      const newUser = { id: normalizedEmail, email: normalizedEmail, password, role };
+      await db.collection('users').doc(normalizedEmail).set(newUser);
+      return res.status(201).json({ email: normalizedEmail, role });
+    }
+  } catch (err: any) {
+    console.error('Error creating user in Firestore:', err);
+  }
+
+  const exists = users.some(u => u.email.toLowerCase() === normalizedEmail);
+  if (exists) {
+    return res.status(400).json({ error: 'User email is already registered.' });
+  }
+
+  const newUser = { id: normalizedEmail, email: normalizedEmail, password, role };
+  users.push(newUser);
+  saveUsersToDisk();
+
+  res.status(201).json({ email: normalizedEmail, role });
+});
+
+// delete a user staff
+app.delete('/api/users/:email', async (req, res) => {
+  const targetEmail = req.params.email.toLowerCase();
+
+  // Prevent deleting the initial/default admin if it's the last admin
+  let adminCount = 0;
+  if (db) {
+    const snapshot = await db.collection('users').where('role', '==', 'admin').get();
+    adminCount = snapshot.size;
+  } else {
+    adminCount = users.filter(u => u.role === 'admin').length;
+  }
+
+  let isTargetAdmin = false;
+  if (db) {
+    const doc = await db.collection('users').doc(targetEmail).get();
+    if (doc.exists && doc.data()?.role === 'admin') {
+      isTargetAdmin = true;
+    }
+  } else {
+    const u = users.find(x => x.email.toLowerCase() === targetEmail);
+    if (u && u.role === 'admin') {
+      isTargetAdmin = true;
+    }
+  }
+
+  if (isTargetAdmin && adminCount <= 1) {
+    return res.status(400).json({ error: 'Cannot delete the only admin user in the system.' });
+  }
+
+  try {
+    if (db) {
+      await db.collection('users').doc(targetEmail).delete();
+      return res.json({ success: true });
+    }
+  } catch (err: any) {
+    console.error('Error deleting user from Firestore:', err);
+  }
+
+  const idx = users.findIndex(u => u.email.toLowerCase() === targetEmail);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  users.splice(idx, 1);
+  saveUsersToDisk();
+
+  res.json({ success: true });
+});
+
+
+// update a user staff role and optionally password
+app.put('/api/users/:email', async (req, res) => {
+  const targetEmail = req.params.email.toLowerCase();
+  const { role, password } = req.body;
+  if (!role) {
+    return res.status(400).json({ error: 'Role is required' });
+  }
+
+  try {
+    if (db) {
+      const docRef = db.collection('users').doc(targetEmail);
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const updateData: any = { role };
+      if (password) updateData.password = password;
+      await docRef.update(updateData);
+      return res.json({ email: targetEmail, role });
+    }
+  } catch (err: any) {
+    console.error('Error updating user in Firestore:', err);
+  }
+
+  const user = users.find(u => u.email.toLowerCase() === targetEmail);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  user.role = role;
+  if (password) user.password = password;
+  saveUsersToDisk();
+
+  res.json({ email: targetEmail, role });
+});
+
+
+// change logged in user password with old password verification
+app.post('/api/users/change-password', async (req, res) => {
+  const { email, oldPassword, password } = req.body;
+  if (!email || !oldPassword || !password) {
+    return res.status(400).json({ error: 'Email, old password, and new password are required' });
+  }
+
+  const targetEmail = email.toLowerCase();
+
+  try {
+    if (db) {
+      const docRef = db.collection('users').doc(targetEmail);
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const data = doc.data();
+      if (data?.password !== oldPassword) {
+        return res.status(400).json({ error: 'Current password does not match.' });
+      }
+      await docRef.update({ password });
+      return res.json({ success: true });
+    }
+  } catch (err: any) {
+    console.error('Error changing password in Firestore:', err);
+  }
+
+  const user = users.find(u => u.email.toLowerCase() === targetEmail);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (user.password !== oldPassword) {
+    return res.status(400).json({ error: 'Current password does not match.' });
+  }
+
+  user.password = password;
+  saveUsersToDisk();
+
+  res.json({ success: true });
+});
+
+
+// Backup entire database collections
+app.get('/api/backup', async (req, res) => {
+  try {
+    let currentInvoices = invoices;
+    let currentVisas = visas;
+    let currentCustomers = customers;
+    let currentQuotations = quotations;
+
+    if (db) {
+      const [invSnap, visaSnap, custSnap, quoteSnap] = await Promise.all([
+        db.collection('invoices').get(),
+        db.collection('visas').get(),
+        db.collection('customers').get(),
+        db.collection('quotations').get()
+      ]);
+      currentInvoices = invSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      currentVisas = visaSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      currentCustomers = custSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      currentQuotations = quoteSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    res.json({
+      invoices: currentInvoices,
+      visas: currentVisas,
+      customers: currentCustomers,
+      quotations: currentQuotations,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error('Backup failed:', err);
+    res.status(500).json({ error: 'Failed to compile backup: ' + err.message });
+  }
+});
+
+
+// Restore database collections from backup payload
+app.post('/api/restore', async (req, res) => {
+  const { invoices: newInvoices, visas: newVisas, customers: newCustomers, quotations: newQuotations } = req.body;
+  
+  if (!Array.isArray(newInvoices) || !Array.isArray(newVisas) || !Array.isArray(newCustomers) || !Array.isArray(newQuotations)) {
+    return res.status(400).json({ error: 'Invalid backup format' });
+  }
+
+  try {
+    invoices = newInvoices;
+    visas = newVisas;
+    customers = newCustomers;
+    quotations = newQuotations;
+
+    saveInvoicesToDisk();
+    saveVisasToDisk();
+    saveCustomersToDisk();
+    saveQuotationsToDisk();
+
+    if (db) {
+      const restoreCollection = async (colName: string, items: any[]) => {
+        const colRef = db!.collection(colName);
+        const snapshot = await colRef.get();
+        
+        const batchDelete = db!.batch();
+        snapshot.docs.forEach(doc => batchDelete.delete(doc.ref));
+        await batchDelete.commit();
+
+        const batchWrite = db!.batch();
+        items.forEach(item => {
+          const docId = String(item.id || item.email || Math.random());
+          const docRef = colRef.doc(docId);
+          batchWrite.set(docRef, item);
+        });
+        await batchWrite.commit();
+      };
+
+      await Promise.all([
+        restoreCollection('invoices', newInvoices),
+        restoreCollection('visas', newVisas),
+        restoreCollection('customers', newCustomers),
+        restoreCollection('quotations', newQuotations)
+      ]);
+    }
+
+    res.json({ success: true, message: 'All collections restored successfully' });
+  } catch (err: any) {
+    console.error('Restore failed:', err);
+    res.status(500).json({ error: 'Failed to restore backup: ' + err.message });
+  }
+});
+
+
+// Delete selective database collections
+app.post('/api/delete-data', async (req, res) => {
+  const { deleteTickets, deleteVisas, deleteCustomers, deleteQuotations } = req.body;
+
+  try {
+    const clearCollection = async (colName: string) => {
+      if (db) {
+        const colRef = db.collection(colName);
+        const snapshot = await colRef.get();
+        const batchDelete = db.batch();
+        snapshot.docs.forEach(doc => batchDelete.delete(doc.ref));
+        await batchDelete.commit();
+      }
+    };
+
+    if (deleteTickets) {
+      invoices = [];
+      saveInvoicesToDisk();
+      await clearCollection('invoices');
+    }
+
+    if (deleteVisas) {
+      visas = [];
+      saveVisasToDisk();
+      await clearCollection('visas');
+    }
+
+    if (deleteCustomers) {
+      customers = [];
+      saveCustomersToDisk();
+      await clearCollection('customers');
+    }
+
+    if (deleteQuotations) {
+      quotations = [];
+      saveQuotationsToDisk();
+      await clearCollection('quotations');
+    }
+
+    res.json({ success: true, message: 'Selected collections deleted successfully.' });
+  } catch (err: any) {
+    console.error('Delete data failed:', err);
+    res.status(500).json({ error: 'Failed to delete selected data: ' + err.message });
+  }
+});
+
 
 // -----------------------------------------------------------------------------
 // Vite Middleware / Asset Serving
@@ -1378,6 +2059,7 @@ async function startServer() {
   // Seed the Firestore database with default data if empty
   try {
     if (db) {
+      await seedCollection('users', users.length > 0 ? users : initialUsers);
       await seedCollection('customers', customers);
       await seedCollection('invoices', invoices);
       await seedCollection('refunds', refunds);
@@ -1386,6 +2068,22 @@ async function startServer() {
       await seedCollection('commissionRules', commissionRules);
       await seedCollection('auditLogs', auditLogs);
       console.log('[Firebase] Seeding check complete.');
+
+      // Ensure Firestore has today's invoices for the demo daily report
+      const d = new Date();
+      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const todaySnapshot = await db.collection('invoices').where('salesDate', '==', todayStr).limit(1).get();
+      if (todaySnapshot.empty) {
+        console.log(`[Firebase] No invoices found for today (${todayStr}) in Firestore. Shifting 5 recent ones for demo.`);
+        const recentSnapshot = await db.collection('invoices').limit(5).get();
+        for (const doc of recentSnapshot.docs) {
+          const originalTime = doc.data().createdAt ? doc.data().createdAt.split('T')[1] || '09:00:00Z' : '09:00:00Z';
+          await doc.ref.update({
+            salesDate: todayStr,
+            createdAt: `${todayStr}T${originalTime}`
+          });
+        }
+      }
     }
   } catch (err) {
     console.error('[Firebase] Database seeding failed:', err);

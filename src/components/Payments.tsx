@@ -150,6 +150,7 @@ export default function Payments() {
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Settlement Amount ($)</label>
               <input
                 type="number"
+                step="any"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

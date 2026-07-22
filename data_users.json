@@ -1,0 +1,32 @@
+[
+  {
+    "id": "admin@noble.com",
+    "email": "admin@noble.com",
+    "password": "admin123",
+    "role": "admin"
+  },
+  {
+    "id": "cashier@noble.com",
+    "email": "cashier@noble.com",
+    "password": "cashier123",
+    "role": "cashier"
+  },
+  {
+    "id": "agent@noble.com",
+    "email": "agent@noble.com",
+    "password": "agent123",
+    "role": "user"
+  },
+  {
+    "id": "ahmed@noble.com",
+    "email": "ahmed@noble.com",
+    "password": "cashier123",
+    "role": "user"
+  },
+  {
+    "id": "moh@noble.com",
+    "email": "moh@noble.com",
+    "password": "1234",
+    "role": "user"
+  }
+]

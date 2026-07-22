@@ -7,7 +7,7 @@
     "mobile": "+1 555-0101",
     "commissionPercent": 9,
     "creditLimit": 100000,
-    "balance": 0,
+    "balance": 21415,
     "createdAt": "2026-03-10T10:00:00Z"
   },
   {
@@ -29,7 +29,7 @@
     "mobile": "+1 555-0199",
     "commissionPercent": 7,
     "creditLimit": 50000,
-    "balance": 12450,
+    "balance": 14872.619999999997,
     "createdAt": "2026-03-10T10:00:00Z"
   },
   {
@@ -40,7 +40,7 @@
     "mobile": "+1 555-0144",
     "commissionPercent": 5,
     "creditLimit": 100000,
-    "balance": 34200,
+    "balance": 33190,
     "createdAt": "2026-04-12T11:30:00Z"
   },
   {

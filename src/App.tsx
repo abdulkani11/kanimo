@@ -11,7 +11,13 @@ import {
   Menu, 
   X,
   Sun,
-  Moon
+  Moon,
+  UserPlus,
+  TrendingUp,
+  Fingerprint,
+  Key,
+  Check,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -19,31 +25,66 @@ import { motion, AnimatePresence } from 'motion/react';
 import Dashboard from './components/Dashboard';
 import Customers from './components/Customers';
 import Tickets from './components/Tickets';
-import Invoices from './components/Invoices';
-import Payments from './components/Payments';
 import Refunds from './components/Refunds';
-import Reports from './components/Reports';
 import Settings from './components/Settings';
+import Staff from './components/Staff';
+import DailyReport from './components/DailyReport';
 import LoadingScreen from './components/LoadingScreen';
 import HeaderLogo from './components/HeaderLogo';
 import Login from './components/Login';
+import Visa from './components/Visa';
+import Quotation from './components/Quotation';
 // @ts-ignore
 import ethiopianBg from './assets/images/ethiopian_plane_bg_1784506931193.jpg';
 
-type Tab = 'dashboard' | 'customers' | 'tickets' | 'invoices' | 'payments' | 'refunds' | 'reports' | 'settings';
+type Tab = 'dashboard' | 'customers' | 'tickets' | 'refunds' | 'settings' | 'staff' | 'daily-report' | 'visa' | 'quotation';
 
 export default function App() {
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // User Password Changer states
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [changePassSuccess, setChangePassSuccess] = useState(false);
+  const [changePassError, setChangePassError] = useState('');
+  const [changePassLoading, setChangePassLoading] = useState(false);
+
+  const [tabHistory, setTabHistory] = useState<Tab[]>([]);
 
   const handleTabChange = (newTab: Tab) => {
     if (newTab === activeTab) return;
+    setTabHistory(prev => [...prev, activeTab]);
     setIsTransitioning(true);
     setTimeout(() => {
       setActiveTab(newTab);
     }, 450); // Switch tab mid-way through animation
+  };
+
+  const handleGoBack = () => {
+    // Dispatch custom event so sub-views (like Edit Ticket, View Letter, etc.) reset to list view first!
+    const backEvent = new CustomEvent('noble_go_back', { cancelable: true });
+    const wasHandledBySubView = !window.dispatchEvent(backEvent);
+
+    // If sub-view handled the back action (e.g. going from Edit Ticket -> Ticket Manager list), stay on current tab!
+    if (wasHandledBySubView) return;
+
+    if (tabHistory.length > 0) {
+      const previous = tabHistory[tabHistory.length - 1];
+      setTabHistory(prev => prev.slice(0, -1));
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setActiveTab(previous);
+      }, 300);
+    } else {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setActiveTab('dashboard');
+      }, 300);
+    }
   };
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -68,6 +109,10 @@ export default function App() {
     return (localStorage.getItem('noble_logged_in_role') as any) || (localStorage.getItem('apex_user_role') as any) || 'admin';
   });
 
+  const [loggedInEmail, setLoggedInEmail] = useState<string>(() => {
+    return localStorage.getItem('noble_logged_in_email') || 'admin@noble.com';
+  });
+
   const [userRole, setUserRole] = useState<'admin' | 'cashier' | 'user'>(() => {
     return (localStorage.getItem('apex_user_role') as any) || 'admin';
   });
@@ -77,11 +122,13 @@ export default function App() {
     localStorage.setItem('apex_user_role', role);
   };
 
-  const handleLoginSuccess = (role: 'admin' | 'cashier' | 'user') => {
+  const handleLoginSuccess = (role: 'admin' | 'cashier' | 'user', email: string) => {
     setLoggedInRole(role);
     localStorage.setItem('noble_logged_in_role', role);
     setUserRole(role);
     localStorage.setItem('apex_user_role', role);
+    setLoggedInEmail(email);
+    localStorage.setItem('noble_logged_in_email', email);
     localStorage.setItem('noble_logged_in', 'true');
     setIsLoggedIn(true);
   };
@@ -104,30 +151,35 @@ export default function App() {
           title: 'Manage Ticket',
           subtitle: 'Search, insert, update, edit, and delete passenger GDS manifests and flight segments',
         };
-      case 'invoices':
-        return {
-          title: 'Invoice Center',
-          subtitle: 'Audit ticket documents, print receipts, and dispatch customer reminders',
-        };
-      case 'payments':
-        return {
-          title: 'Settlement Office',
-          subtitle: 'Log partner deposits, bank wire clearance, and partial payments',
-        };
       case 'refunds':
         return {
           title: 'Refund Claims Board',
           subtitle: 'Approve ticket returns, process flight cancellations, and void ledger entries',
         };
-      case 'reports':
-        return {
-          title: 'Reports & Analytics',
-          subtitle: 'Access aging accounts, profitability statistics, and cash flow diaries',
-        };
       case 'settings':
         return {
           title: 'Agency Configuration',
           subtitle: 'Maintain IATA codes, BSP default currencies, and GDS routing rules',
+        };
+      case 'staff':
+        return {
+          title: 'Staff Registry',
+          subtitle: 'Register new web application staff, manage credentials, and assign system permissions',
+        };
+      case 'daily-report':
+        return {
+          title: 'Daily Ticket Report',
+          subtitle: "Track today's passenger manifests, base fare, net amount, and GDS commissions",
+        };
+      case 'visa':
+        return {
+          title: 'Manage Visa',
+          subtitle: 'Register and update customer visa applications, track sponsorships, and process entry permits',
+        };
+      case 'quotation':
+        return {
+          title: 'Quotation Center',
+          subtitle: 'Write and generate professional travel quotation letters for corporate and individual clients',
         };
     }
   };
@@ -137,13 +189,14 @@ export default function App() {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Globe, category: 'Travel Desk' },
     { id: 'tickets', label: 'Manage Ticket', icon: Ticket, category: 'Travel Desk' },
+    { id: 'visa', label: 'Manage Visa', icon: Fingerprint, category: 'Travel Desk' },
     { id: 'customers', label: 'Client Accounts', icon: Users, category: 'Travel Desk' },
+    { id: 'daily-report', label: 'Daily Report', icon: TrendingUp, category: 'Travel Desk' },
+    { id: 'quotation', label: 'Quotation', icon: FileText, category: 'Travel Desk' },
     
-    { id: 'invoices', label: 'Invoices & Receipts', icon: FileText, category: 'Settlement Office' },
-    { id: 'payments', label: 'Payments Wire', icon: CreditCard, category: 'Settlement Office' },
     { id: 'refunds', label: 'Refund Claims', icon: RotateCcw, category: 'Settlement Office' },
-    { id: 'reports', label: 'Reports Desk', icon: BarChart2, category: 'Settlement Office' },
     { id: 'settings', label: 'Agency Settings', icon: SettingsIcon, category: 'Settlement Office' },
+    ...(loggedInRole === 'admin' ? [{ id: 'staff', label: 'Staff Registry', icon: UserPlus, category: 'Settlement Office' }] : []),
   ];
 
   if (isAppLoading) {
@@ -331,7 +384,16 @@ export default function App() {
           {/* Header Bar */}
           <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                {(tabHistory.length > 0 || activeTab !== 'dashboard') && (
+                  <button
+                    onClick={handleGoBack}
+                    className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer hover:border-slate-350"
+                    title="Return to previous page or view"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Back to Previous Page
+                  </button>
+                )}
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                   <span className="px-3 py-1 bg-blue-50 text-blue-750 text-[11px] font-black tracking-widest uppercase rounded-xl border border-blue-100 shadow-sm">
                     {title}
@@ -371,8 +433,23 @@ export default function App() {
 
               <button
                 onClick={() => {
+                  setOldPassword('');
+                  setNewPassword('');
+                  setChangePassSuccess(false);
+                  setChangePassError('');
+                  setIsChangePasswordOpen(true);
+                }}
+                className="bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-100 dark:border-blue-900/30 text-blue-700 dark:text-blue-400 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                title="Change secure password"
+              >
+                🔑 Change Password
+              </button>
+
+              <button
+                onClick={() => {
                   localStorage.removeItem('noble_logged_in');
                   localStorage.removeItem('noble_logged_in_role');
+                  localStorage.removeItem('noble_logged_in_email');
                   setIsLoggedIn(false);
                 }}
                 className="bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 border border-rose-100 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
@@ -393,14 +470,15 @@ export default function App() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
               >
-                {activeTab === 'dashboard' && <Dashboard />}
+                {activeTab === 'dashboard' && <Dashboard userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'customers' && <Customers />}
-                {activeTab === 'tickets' && <Tickets userRole={userRole} />}
-                {activeTab === 'invoices' && <Invoices />}
-                {activeTab === 'payments' && <Payments />}
+                {activeTab === 'tickets' && <Tickets userRole={userRole} loggedInEmail={loggedInEmail} />}
+                {activeTab === 'visa' && <Visa userRole={userRole} loggedInEmail={loggedInEmail} />}
+                {activeTab === 'quotation' && <Quotation userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'refunds' && <Refunds />}
-                {activeTab === 'reports' && <Reports />}
+                {activeTab === 'daily-report' && <DailyReport userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'settings' && <Settings />}
+                {activeTab === 'staff' && loggedInRole === 'admin' && <Staff />}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -424,6 +502,111 @@ export default function App() {
           isTransition={true} 
           onFinished={() => setIsTransitioning(false)} 
         />
+      )}
+
+      {/* Change Password Modal Overlay */}
+      {isChangePasswordOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200 text-slate-800 dark:text-slate-100">
+            <button 
+              onClick={() => setIsChangePasswordOpen(false)}
+              className="absolute right-4 top-4 p-1 rounded-lg text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-blue-600 dark:text-blue-400">
+                <Key className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base tracking-tight leading-tight">Change Password</h3>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Set new security credential for {loggedInEmail}</p>
+              </div>
+            </div>
+
+            {changePassSuccess && (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 rounded-xl text-xs font-semibold mb-4 flex items-center gap-2 font-mono">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Password updated successfully!</span>
+              </div>
+            )}
+
+            {changePassError && (
+              <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-xl text-xs font-semibold mb-4 flex items-center gap-2 font-mono">
+                <X className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{changePassError}</span>
+              </div>
+            )}
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!oldPassword || !newPassword) return;
+              setChangePassLoading(true);
+              setChangePassError('');
+              setChangePassSuccess(false);
+
+              try {
+                const res = await fetch('/api/users/change-password', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: loggedInEmail, oldPassword, password: newPassword })
+                });
+                if (res.ok) {
+                  setChangePassSuccess(true);
+                  setOldPassword('');
+                  setNewPassword('');
+                  setTimeout(() => setIsChangePasswordOpen(false), 2000);
+                } else {
+                  const data = await res.json();
+                  setChangePassError(data.error || 'Failed to change password.');
+                }
+              } catch (err) {
+                setChangePassError('Network error connecting to server.');
+              } finally {
+                setChangePassLoading(false);
+              }
+            }} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">Current Password</label>
+                <div className="relative">
+                  <Key className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="password" 
+                    required
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full bg-[#F8FAFC] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 pl-10 pr-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">New Secure Password</label>
+                <div className="relative">
+                  <Key className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="password" 
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full bg-[#F8FAFC] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-100 pl-10 pr-4 py-2.5 text-xs rounded-xl focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={changePassLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider py-3 rounded-xl transition-all shadow-md cursor-pointer hover:shadow-lg flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+              >
+                {changePassLoading ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
