@@ -89,7 +89,7 @@ export default function App() {
   };
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('noble_logged_in') === 'true';
+    return sessionStorage.getItem('noble_logged_in') === 'true';
   });
 
   const [darkMode, setDarkMode] = useState(() => {
@@ -107,24 +107,24 @@ export default function App() {
   }, [darkMode]);
 
   const [loggedInRole, setLoggedInRole] = useState<'admin' | 'cashier' | 'user'>(() => {
-    return (localStorage.getItem('noble_logged_in_role') as any) || (localStorage.getItem('apex_user_role') as any) || 'admin';
+    return (sessionStorage.getItem('noble_logged_in_role') as any) || (sessionStorage.getItem('apex_user_role') as any) || 'admin';
   });
 
   const [loggedInEmail, setLoggedInEmail] = useState<string>(() => {
-    return localStorage.getItem('noble_logged_in_email') || 'admin@noble.com';
+    return sessionStorage.getItem('noble_logged_in_email') || 'admin@noble.com';
   });
 
   const [loggedInName, setLoggedInName] = useState<string>(() => {
-    return localStorage.getItem('noble_logged_in_name') || 'Jane Doe';
+    return sessionStorage.getItem('noble_logged_in_name') || 'Jane Doe';
   });
 
   const [userRole, setUserRole] = useState<'admin' | 'cashier' | 'user'>(() => {
-    return (localStorage.getItem('apex_user_role') as any) || 'admin';
+    return (sessionStorage.getItem('apex_user_role') as any) || 'admin';
   });
 
   const handleRoleChange = (role: 'admin' | 'cashier' | 'user') => {
     setUserRole(role);
-    localStorage.setItem('apex_user_role', role);
+    sessionStorage.setItem('apex_user_role', role);
     // Automatically update the displayed logged-in name if the admin toggles privilege role for simulation/testing
     if (loggedInRole === 'admin') {
       if (role === 'admin') setLoggedInName('Jane Doe');
@@ -135,11 +135,11 @@ export default function App() {
 
   const handleLoginSuccess = (role: 'admin' | 'cashier' | 'user', email: string, name: string) => {
     setLoggedInRole(role);
-    localStorage.setItem('noble_logged_in_role', role);
+    sessionStorage.setItem('noble_logged_in_role', role);
     setUserRole(role);
-    localStorage.setItem('apex_user_role', role);
+    sessionStorage.setItem('apex_user_role', role);
     setLoggedInEmail(email);
-    localStorage.setItem('noble_logged_in_email', email);
+    sessionStorage.setItem('noble_logged_in_email', email);
     
     let resolvedName = name;
     if (!resolvedName) {
@@ -149,13 +149,39 @@ export default function App() {
       else resolvedName = email.split('@')[0];
     }
     setLoggedInName(resolvedName);
-    localStorage.setItem('noble_logged_in_name', resolvedName);
+    sessionStorage.setItem('noble_logged_in_name', resolvedName);
     
-    localStorage.setItem('noble_logged_in', 'true');
+    sessionStorage.setItem('noble_logged_in', 'true');
     setIsLoggedIn(true);
     setActiveTab('dashboard');
     setTabHistory([]);
   };
+
+  // User activity tracker helper
+  const updateUserActivity = (activity: string) => {
+    if (!isLoggedIn || !loggedInEmail) return;
+    fetch('/api/auth/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: loggedInEmail, activity })
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let activity = 'page (dashboard)';
+    if (activeTab === 'tickets') activity = 'page (manage ticket)';
+    else if (activeTab === 'visa') activity = 'page (manage visa)';
+    else if (activeTab === 'customers') activity = 'page (client accounts)';
+    else if (activeTab === 'client-invoice') activity = 'page (client invoice)';
+    else if (activeTab === 'daily-report') activity = 'page (daily report)';
+    else if (activeTab === 'quotation') activity = 'page (quotation)';
+    else if (activeTab === 'refunds') activity = 'page (refund claims)';
+    else if (activeTab === 'settings') activity = 'page (agency settings)';
+    else if (activeTab === 'staff') activity = 'page (staff registry)';
+    
+    updateUserActivity(activity);
+  }, [activeTab, isLoggedIn, loggedInEmail]);
 
   // Dynamically compute header info based on active tab
   const getHeaderDetails = () => {
@@ -476,10 +502,21 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => {
-                  localStorage.removeItem('noble_logged_in');
-                  localStorage.removeItem('noble_logged_in_role');
-                  localStorage.removeItem('noble_logged_in_email');
+                onClick={async () => {
+                  try {
+                    await fetch('/api/auth/logout', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: loggedInEmail })
+                    });
+                  } catch (err) {
+                    console.error('Logout error:', err);
+                  }
+                  sessionStorage.removeItem('noble_logged_in');
+                  sessionStorage.removeItem('noble_logged_in_role');
+                  sessionStorage.removeItem('noble_logged_in_email');
+                  sessionStorage.removeItem('noble_logged_in_name');
+                  sessionStorage.removeItem('apex_user_role');
                   setIsLoggedIn(false);
                 }}
                 className="bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 border border-rose-100 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
@@ -502,14 +539,14 @@ export default function App() {
               >
                 {activeTab === 'dashboard' && <Dashboard userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'customers' && <Customers />}
-                {activeTab === 'client-invoice' && loggedInRole === 'admin' && <ClientInvoice />}
-                {activeTab === 'tickets' && <Tickets userRole={userRole} loggedInEmail={loggedInEmail} loggedInName={loggedInName} />}
-                {activeTab === 'visa' && <Visa userRole={userRole} loggedInEmail={loggedInEmail} loggedInName={loggedInName} />}
+                {activeTab === 'client-invoice' && loggedInRole === 'admin' && <ClientInvoice onActivityChange={updateUserActivity} />}
+                {activeTab === 'tickets' && <Tickets userRole={userRole} loggedInEmail={loggedInEmail} loggedInName={loggedInName} onActivityChange={updateUserActivity} />}
+                {activeTab === 'visa' && <Visa userRole={userRole} loggedInEmail={loggedInEmail} loggedInName={loggedInName} onActivityChange={updateUserActivity} />}
                 {activeTab === 'quotation' && loggedInRole === 'admin' && <Quotation userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'refunds' && <Refunds />}
                 {activeTab === 'daily-report' && <DailyReport userRole={userRole} loggedInEmail={loggedInEmail} />}
                 {activeTab === 'settings' && <Settings />}
-                {activeTab === 'staff' && loggedInRole === 'admin' && <Staff />}
+                {activeTab === 'staff' && loggedInRole === 'admin' && <Staff userRole={loggedInRole} loggedInEmail={loggedInEmail} />}
               </motion.div>
             </AnimatePresence>
           </div>

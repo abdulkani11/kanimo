@@ -7,9 +7,17 @@ interface StaffUser {
   name?: string;
   email: string;
   role: 'admin' | 'cashier' | 'user';
+  isOnline?: boolean;
+  lastOnline?: string;
+  onlineDuration?: string;
 }
 
-export default function Staff() {
+interface StaffProps {
+  userRole?: 'admin' | 'cashier' | 'user';
+  loggedInEmail?: string;
+}
+
+export default function Staff({ userRole = 'admin', loggedInEmail = 'admin@noble.com' }: StaffProps) {
   const [usersList, setUsersList] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -32,7 +40,7 @@ export default function Staff() {
   // Load all users
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch(`/api/users?currentUserEmail=${encodeURIComponent(loggedInEmail)}`);
       if (res.ok) {
         const data = await res.json();
         setUsersList(data);
@@ -44,7 +52,14 @@ export default function Staff() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+
+    // Auto-update connection status and user activities in real time
+    const interval = setInterval(() => {
+      fetchUsers();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [loggedInEmail]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,10 +215,13 @@ export default function Staff() {
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-750">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="bg-[#F8FAFC] dark:bg-slate-900/40 border-b border-slate-200/80 dark:border-slate-750 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-[#F8FAFC] dark:bg-slate-900/40 border-b border-slate-200/80 dark:border-slate-750 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-mono">
                 <th className="px-5 py-3">Full Name</th>
                 <th className="px-5 py-3">Email Coordinates</th>
                 <th className="px-5 py-3 text-center">Privilege Role</th>
+                <th className="px-5 py-3 text-center">Connection Status</th>
+                <th className="px-5 py-3 text-center">Current Activity</th>
+                <th className="px-5 py-3 text-center">Session Duration</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -233,6 +251,36 @@ export default function Staff() {
                         }`}></span>
                         {user.role}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-xl border shadow-sm ${
+                        user.isOnline 
+                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-250 text-emerald-700 dark:text-emerald-400' 
+                          : 'bg-slate-100 dark:bg-slate-900 border-slate-200 text-slate-550 dark:text-slate-450'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          user.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                        }`}></span>
+                        {user.isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-semibold text-slate-700 dark:text-slate-300">
+                      {user.isOnline ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-650 dark:bg-slate-900 dark:border-slate-800 font-mono text-[10px]">
+                          {user.activity || 'page (dashboard)'}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono font-bold text-slate-650 dark:text-slate-400">
+                      {user.isOnline ? (
+                        <span className="text-emerald-600 dark:text-emerald-450 font-black">Active for {user.onlineDuration}</span>
+                      ) : (
+                        <span className="text-[10px]">
+                          Last seen: {new Date(user.lastOnline || '').toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} ({user.onlineDuration} session)
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">

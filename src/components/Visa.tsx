@@ -39,9 +39,10 @@ interface VisaProps {
   userRole: 'admin' | 'cashier' | 'user';
   loggedInEmail: string;
   loggedInName?: string;
+  onActivityChange?: (activity: string) => void;
 }
 
-export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProps) {
+export default function Visa({ userRole, loggedInEmail, loggedInName, onActivityChange }: VisaProps) {
   const salesUser = loggedInName 
     ? loggedInName.toUpperCase() 
     : (userRole === 'admin' ? 'JANE DOE (ADMIN)' : userRole === 'cashier' ? 'HAMZE ISMAIL (CASHIER)' : 'ABDI KANIM (USER)');
@@ -50,6 +51,16 @@ export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProp
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view-letter'>('list');
   const [selectedVisa, setSelectedVisa] = useState<VisaRecord | null>(null);
+
+  useEffect(() => {
+    if (!onActivityChange) return;
+    if (viewMode === 'view-letter' && selectedVisa) {
+      onActivityChange(`page (print) - Visa ${selectedVisa.customInvoiceId || selectedVisa.id}`);
+    } else {
+      onActivityChange('page (manage visa)');
+    }
+  }, [viewMode, selectedVisa, onActivityChange]);
+
   const [deleteVisaTarget, setDeleteVisaTarget] = useState<VisaRecord | null>(null);
 
   // Form Fields

@@ -200,7 +200,7 @@ export default function Dashboard({ userRole = 'admin', loggedInEmail = 'admin@n
           <div className="flex justify-between items-start">
             <div>
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider font-sans">Total Tickets Logged</p>
-              <h3 className="text-2xl font-black text-slate-900 mt-1 font-sans">{invoices.length}</h3>
+              <h3 className="text-2xl font-black text-slate-900 mt-1 font-sans">{scopedInvoices.length}</h3>
             </div>
             <span className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
               <Ticket className="w-5 h-5" />

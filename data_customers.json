@@ -1,5 +1,16 @@
 [
   {
+    "id": "CUST-105",
+    "name": "CUSTOMER",
+    "type": "Individual",
+    "email": "",
+    "mobile": "",
+    "commissionPercent": 0,
+    "creditLimit": 0,
+    "balance": 0,
+    "createdAt": "2026-07-23T17:44:31.836Z"
+  },
+  {
     "id": "CUST-101",
     "name": "Elite Travel Agency",
     "type": "Travel Agency",
@@ -18,7 +29,7 @@
     "mobile": "+1 555-0144",
     "commissionPercent": 5,
     "creditLimit": 100000,
-    "balance": 34704.62,
+    "balance": 32578.770000000004,
     "createdAt": "2026-04-12T11:30:00Z"
   },
   {

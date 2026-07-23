@@ -18,9 +18,9 @@
     "vendorCommission": 29.07,
     "customerCommission": 0,
     "netAmount": 2425.85,
-    "paidAmount": 300,
-    "dueAmount": 2125.85,
-    "status": "Partial",
+    "paidAmount": 2425.85,
+    "dueAmount": 0,
+    "status": "Paid",
     "createdAt": "2026-07-23T00:00:00.000Z",
     "paymentMethod": "ZAAD",
     "passengers": [

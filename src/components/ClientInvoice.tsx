@@ -45,13 +45,23 @@ interface CustomerRecord {
   balance: number;
 }
 
-export default function ClientInvoice() {
+interface ClientInvoiceProps {
+  onActivityChange?: (activity: string) => void;
+}
+
+export default function ClientInvoice({ onActivityChange }: ClientInvoiceProps) {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (onActivityChange) {
+      onActivityChange('page (client invoice)');
+    }
+  }, [onActivityChange]);
 
   useEffect(() => {
     fetchCustomers();

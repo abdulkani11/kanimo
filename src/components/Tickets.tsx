@@ -33,9 +33,10 @@ interface TicketsProps {
   userRole?: 'admin' | 'cashier' | 'user';
   loggedInEmail?: string;
   loggedInName?: string;
+  onActivityChange?: (activity: string) => void;
 }
 
-export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@noble.com', loggedInName }: TicketsProps) {
+export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@noble.com', loggedInName, onActivityChange }: TicketsProps) {
   const [invoices, setInvoices] = useState<TicketInvoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,15 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
   // Mode state: 'list' | 'create' | 'edit' | 'view'
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<TicketInvoice | null>(null);
+
+  useEffect(() => {
+    if (!onActivityChange) return;
+    if (viewMode === 'view' && selectedInvoice) {
+      onActivityChange(`page (print) - Ticket ${selectedInvoice.customInvoiceId || selectedInvoice.id}`);
+    } else {
+      onActivityChange('page (manage ticket)');
+    }
+  }, [viewMode, selectedInvoice, onActivityChange]);
 
   // Filters & Search (Mirroring Image 4)
   const [filterSalesDate, setFilterSalesDate] = useState('');
