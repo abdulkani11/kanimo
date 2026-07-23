@@ -1021,6 +1021,14 @@ export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProp
             </div>
 
             <div className="flex items-center gap-3">
+              {selectedVisa?.status?.toLowerCase() !== 'paid' && (
+                <button
+                  onClick={() => handleStatusClick(selectedVisa)}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl border border-emerald-650 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <DollarSign className="w-4 h-4" /> Add Payment
+                </button>
+              )}
               <button
                 onClick={() => window.print()}
                 className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm"
@@ -1329,6 +1337,17 @@ export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProp
             </div>
 
           </div>
+          
+          {userRole !== 'cashier' && selectedVisa?.status.toLowerCase() !== 'paid' && (
+            <div className="flex justify-end pt-2 print:hidden">
+              <button
+                onClick={() => enterEditMode(selectedVisa)}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                <Edit className="w-4 h-4" /> Edit Visa Settings
+              </button>
+            </div>
+          )}
         </div>
       )}
 

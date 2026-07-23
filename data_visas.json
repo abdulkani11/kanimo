@@ -14,9 +14,9 @@
     "discount": 10,
     "customerCommission": 5,
     "netAmount": 145,
-    "paidAmount": 456,
-    "dueAmount": 0,
-    "status": "Paid",
+    "paidAmount": 50,
+    "dueAmount": 95,
+    "status": "Partial",
     "paymentMethod": "ZAAD",
     "createdBy": "admin@noble.com",
     "createdAt": "2026-07-22T08:00:00.000Z"
