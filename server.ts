@@ -1373,7 +1373,7 @@ app.post('/api/payments', async (req, res) => {
   const { invoiceId, amount, method, referenceNumber, status } = req.body;
   try {
     if (db) {
-      const isVisa = invoiceId.startsWith('VSA-');
+      const isVisa = invoiceId.startsWith('VSA-') || invoiceId.startsWith('VSK-') || invoiceId.startsWith('VS-');
       const invRef = db.collection(isVisa ? 'visas' : 'invoices').doc(invoiceId);
       const invSnap = await invRef.get();
       if (!invSnap.exists) return res.status(404).json({ error: 'Invoice not found' });
@@ -1485,7 +1485,7 @@ app.post('/api/payments', async (req, res) => {
     saveCustomersToDisk();
   }
 
-  if (invoiceId.startsWith('VSA-')) {
+  if (invoiceId.startsWith('VSA-') || invoiceId.startsWith('VSK-') || invoiceId.startsWith('VS-')) {
     saveVisasToDisk();
   } else {
     saveInvoicesToDisk();

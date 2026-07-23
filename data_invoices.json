@@ -18,11 +18,11 @@
     "vendorCommission": 29.07,
     "customerCommission": 0,
     "netAmount": 2425.85,
-    "paidAmount": 0,
-    "dueAmount": 2425.85,
-    "status": "Unpaid",
+    "paidAmount": 300,
+    "dueAmount": 2125.85,
+    "status": "Partial",
     "createdAt": "2026-07-23T00:00:00.000Z",
-    "paymentMethod": "Bank",
+    "paymentMethod": "ZAAD",
     "passengers": [
       {
         "name": "fdg",

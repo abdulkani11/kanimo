@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Search, Eye, Edit, Trash2, ArrowLeft, Printer, RefreshCw, X, Download, Upload, Calculator, FileText, DollarSign, AlertTriangle
+  Plus, Search, Eye, Edit, Trash2, ArrowLeft, Printer, RefreshCw, X, Download, Upload, Calculator, FileText, DollarSign, AlertTriangle, ChevronDown
 } from 'lucide-react';
 import HeaderLogo from './HeaderLogo';
 import logoImg from '../assets/images/dual_airline_logo.png';
@@ -614,21 +614,41 @@ export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProp
                             ${v.dueAmount.toFixed(2)}
                           </td>
                           <td className="py-4 px-4 text-center">
-                            <button
-                              onClick={() => (userRole === 'admin' || userRole === 'cashier') && handleStatusClick(v)}
-                              disabled={userRole === 'user'}
-                              className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all border shadow-sm ${
-                                v.status === 'Paid'
-                                  ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                                  : v.status === 'Partial'
-                                  ? 'bg-amber-100 text-amber-850 border-amber-300 hover:bg-amber-200'
-                                  : v.status === 'Refunded'
-                                  ? 'bg-indigo-100 text-indigo-850 border-indigo-300 hover:bg-indigo-200'
-                                  : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
-                              } ${(userRole === 'admin' || userRole === 'cashier') ? 'cursor-pointer' : ''}`}
-                            >
-                              {v.status === 'Partial' ? 'PARTIAL v' : v.status === 'Paid' ? 'PAID v' : v.status === 'Refunded' ? 'REFUNDED v' : 'UNPAID v'}
-                            </button>
+                            {userRole === 'user' ? (
+                              v.status === 'Paid' ? (
+                                <span style={{ fontWeight: 900 }} className="bg-emerald-600 text-white border border-emerald-700 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  Paid
+                                </span>
+                              ) : v.status === 'Partial' ? (
+                                <span style={{ fontWeight: 900 }} className="bg-amber-100 text-amber-850 border border-amber-300 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  Partial
+                                </span>
+                              ) : v.status === 'Refunded' ? (
+                                <span style={{ fontWeight: 900 }} className="bg-indigo-100 text-indigo-850 border border-indigo-300 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  Refunded
+                                </span>
+                              ) : (
+                                <span style={{ fontWeight: 900 }} className="bg-rose-600 text-white border border-rose-700 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg text-center shadow-sm inline-block min-w-[75px]">
+                                  Unpaid
+                                </span>
+                              )
+                            ) : (
+                              <button
+                                onClick={() => handleStatusClick(v)}
+                                style={{ fontWeight: 900 }}
+                                className={`font-black text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg text-center shadow-sm cursor-pointer border font-sans min-w-[90px] flex items-center justify-between gap-1 focus:outline-none transition-all ${
+                                  v.status === 'Refunded' ? 'bg-indigo-100 text-indigo-850 border-indigo-300 hover:bg-indigo-200' :
+                                  v.status === 'Paid' ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700' :
+                                  v.status === 'Partial' ? 'bg-amber-100 text-amber-850 border-amber-300 hover:bg-amber-200' :
+                                  'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
+                                }`}
+                              >
+                                <span>{v.status}</span>
+                                <ChevronDown className={`w-3.5 h-3.5 ${
+                                  (v.status === 'Paid' || v.status === 'Unpaid' || v.status === 'UnPaid') ? 'text-white/95' : 'text-slate-700'
+                                }`} />
+                              </button>
+                            )}
                           </td>
                           <td className="py-4 px-4 text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -1425,6 +1445,7 @@ export default function Visa({ userRole, loggedInEmail, loggedInName }: VisaProp
                   <option value="PAID">PAID</option>
                   <option value="PARTIAL PAID">PARTIAL PAID</option>
                   <option value="REFUND">REFUND</option>
+                  <option value="UNPAID">UNPAID</option>
                 </select>
               </div>
 

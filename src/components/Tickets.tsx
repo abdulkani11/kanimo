@@ -1696,7 +1696,15 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 print:hidden">
+              {selectedInvoice?.status?.toLowerCase() !== 'paid' && (
+                <button
+                  onClick={() => enterPaymentMode(selectedInvoice)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl border border-emerald-650 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <DollarSign className="w-4 h-4" /> Add Payment
+                </button>
+              )}
               <button
                 onClick={handlePrint}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5"
@@ -2030,7 +2038,7 @@ export default function Tickets({ userRole = 'admin', loggedInEmail = 'admin@nob
 
           </div>
 
-          {userRole !== 'cashier' && (
+          {userRole !== 'cashier' && selectedInvoice?.status.toLowerCase() !== 'paid' && (
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => enterEditMode(selectedInvoice)}

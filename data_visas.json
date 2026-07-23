@@ -14,7 +14,7 @@
     "discount": 10,
     "customerCommission": 5,
     "netAmount": 145,
-    "paidAmount": 356,
+    "paidAmount": 456,
     "dueAmount": 0,
     "status": "Paid",
     "paymentMethod": "ZAAD",
