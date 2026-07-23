@@ -125,12 +125,7 @@ export default function ClientInvoice() {
 
   // Metrics calculations
   const totalNet = filteredInvoices.reduce((sum, inv) => {
-    // Standard invoice net revenue = customer comm + vendor commission - discount
-    const custComm = Number(inv.customerCommission) || 0;
-    const vendComm = Number(inv.vendorCommission) || 0;
-    const disc = Number(inv.discount) || 0;
-    const invNetRev = custComm + vendComm - disc;
-    return sum + (inv.tripType === 'Refund' ? 0 : invNetRev);
+    return sum + (Number(inv.netAmount) || 0);
   }, 0);
 
   const totalDiscount = filteredInvoices.reduce((sum, inv) => sum + (Number(inv.discount) || 0), 0);
@@ -203,13 +198,13 @@ export default function ClientInvoice() {
 
       {/* Metrics Bento Layout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Net Revenue card */}
+        {/* Net Amount card */}
         <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-5 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest font-mono">Net Revenue</h4>
+            <h4 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest font-mono">Net Amount</h4>
             <p className="text-lg font-black text-slate-900 dark:text-white mt-1 font-mono">
               ${totalNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
@@ -404,7 +399,7 @@ export default function ClientInvoice() {
         {/* Financial Summary Bento Box */}
         <div className="grid grid-cols-4 gap-4 mb-8 font-sans text-center">
           <div className="border border-slate-350 rounded-xl p-3 bg-slate-50/50">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Net Revenue</span>
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Net Amount</span>
             <span className="text-sm font-black text-slate-955 block mt-1">${totalNet.toFixed(2)}</span>
           </div>
           <div className="border border-slate-350 rounded-xl p-3 bg-slate-50/50">
